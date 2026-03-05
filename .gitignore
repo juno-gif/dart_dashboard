@@ -1,0 +1,60 @@
+# ===========================
+# Frontend (Next.js)
+# ===========================
+frontend/.env.local
+frontend/.env*.local
+frontend/.next/
+frontend/out/
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+frontend/coverage/
+frontend/.vercel
+
+# ===========================
+# Backend (FastAPI / Python)
+# ===========================
+backend/.env
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/**/*.pyo
+backend/.pytest_cache/
+backend/.mypy_cache/
+
+# ===========================
+# Python general
+# ===========================
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.venv
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# ===========================
+# macOS
+# ===========================
+.DS_Store
+**/.DS_Store
+
+# ===========================
+# IDE
+# ===========================
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# ===========================
+# Logs
+# ===========================
+*.log
+logs/

@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx shadcn@latest init --yes)",
+      "Bash(gh auth status)",
+      "Bash(git init)",
+      "Bash(git add -A)",
+      "Bash(git commit:*)",
+      "Bash(git remote add origin https://github.com/juno-gif/portfolio_dashboard.git)",
+      "Bash(git push -u origin main)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(ssh-keyscan -H github.com)",
+      "Bash(~/.ssh/known_hosts)",
+      "Bash(git add app/page.tsx components/AccountCards.tsx components/HeroSection.tsx components/StockList.tsx)",
+      "Bash(git add components/HeroSection.tsx)",
+      "Bash(git add data/sample.csv public/sample.csv)",
+      "Bash(git add app/page.tsx)",
+      "Bash(git add app/api/portfolio/route.ts app/page.tsx)",
+      "Bash(git add package.json package-lock.json)"
+    ]
+  }
+}

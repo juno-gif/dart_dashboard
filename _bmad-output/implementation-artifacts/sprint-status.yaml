@@ -1,0 +1,103 @@
+# generated: 2026-03-05
+# project: my-bmad-project
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: /Users/nhn/my-bmad-project/_bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-03-05
+project: my-bmad-project
+project_key: NOKEY
+tracking_system: file-system
+story_location: /Users/nhn/my-bmad-project/_bmad-output/implementation-artifacts
+
+development_status:
+  # ─────────────────────────────────────────────
+  # Epic 1: 기반 구축 및 P&L 데이터 탐색 (Phase 1 MVP)
+  # FRs: FR1, FR2, FR6, FR7, FR8, FR11, FR12, FR27, FR32, FR33, FR34, FR35
+  # ─────────────────────────────────────────────
+  epic-1: in-progress
+  1-1-project-init-and-deployment-pipeline: review
+  1-2-dart-data-collection-and-db-schema: backlog
+  1-3-company-search: backlog
+  1-4-single-company-pl-chart-and-kpi: backlog
+  1-5-multi-company-pl-comparison-chart: backlog
+  1-6-chart-download-and-system-reliability: backlog
+  epic-1-retrospective: optional
+
+  # ─────────────────────────────────────────────
+  # Epic 2: 사용자 인증 및 팀 접근 제어 (Phase 2)
+  # FRs: FR22, FR23, FR24, FR25, FR26
+  # ─────────────────────────────────────────────
+  epic-2: backlog
+  2-1-magic-link-auth-setup: backlog
+  2-2-supabase-rls-role-based-access: backlog
+  2-3-admin-team-invite-and-role-management: backlog
+  epic-2-retrospective: optional
+
+  # ─────────────────────────────────────────────
+  # Epic 3: 분석 세트 저장·재사용·자동 갱신 (Phase 2)
+  # FRs: FR3, FR13, FR36, FR15, FR16, FR17, FR18, FR19, FR20, FR21
+  # ─────────────────────────────────────────────
+  epic-3: backlog
+  3-1-analysis-set-save-and-load: backlog
+  3-2-analysis-set-edit-and-role-access: backlog
+  3-3-apscheduler-dart-auto-sync: backlog
+  3-4-balance-sheet-chart: backlog
+  3-5-cash-flow-chart: backlog
+  epic-3-retrospective: optional
+
+  # ─────────────────────────────────────────────
+  # Epic 4: 공유 및 협업 (Phase 2)
+  # FRs: FR28, FR29
+  # ─────────────────────────────────────────────
+  epic-4: backlog
+  4-1-analysis-set-share-link: backlog
+  4-2-share-link-readonly-viewer: backlog
+  epic-4-retrospective: optional
+
+  # ─────────────────────────────────────────────
+  # Epic 5: 비상장사 데이터 입력 (Phase 3)
+  # FRs: FR4, FR5, FR9, FR10, FR14
+  # ─────────────────────────────────────────────
+  epic-5: backlog
+  5-1-unlisted-company-manual-data-entry: backlog
+  5-2-unlisted-company-search-and-comparison: backlog
+  epic-5-retrospective: optional
+
+  # ─────────────────────────────────────────────
+  # Epic 6: 고급 내보내기 및 AI 인사이트 (Phase 3)
+  # FRs: FR30, FR31
+  # ─────────────────────────────────────────────
+  epic-6: backlog
+  6-1-analysis-set-ppt-export: backlog
+  6-2-llm-financial-data-ai-summary: backlog
+  epic-6-retrospective: optional

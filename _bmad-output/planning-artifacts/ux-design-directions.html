@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>DART Dashboard — Design Directions</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --gray-50: #F9FAFB; --gray-100: #F3F4F6; --gray-200: #E5E7EB;
+      --gray-400: #9CA3AF; --gray-500: #6B7280; --gray-700: #374151;
+      --gray-900: #111827;
+      --blue-50: #EFF6FF; --blue-100: #DBEAFE; --blue-500: #3B82F6;
+      --blue-600: #2563EB; --blue-700: #1D4ED8;
+      --emerald-500: #10B981; --red-400: #F87171;
+      --orange-400: #FB923C; --purple-400: #A78BFA;
+    }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #0F0F0F; color: var(--gray-900); }
+
+    /* ── Nav ── */
+    .page-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: #1a1a1a; border-bottom: 1px solid #333;
+      display: flex; align-items: center; gap: 8px; padding: 10px 24px;
+      overflow-x: auto;
+    }
+    .page-nav h1 { color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap; margin-right: 8px; }
+    .nav-btn {
+      background: #2a2a2a; color: #ccc; border: 1px solid #444;
+      padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+      white-space: nowrap; transition: all 0.15s;
+    }
+    .nav-btn:hover, .nav-btn.active { background: var(--blue-600); color: #fff; border-color: var(--blue-600); }
+
+    /* ── Direction Wrapper ── */
+    .direction { display: none; padding: 60px 24px 40px; }
+    .direction.visible { display: block; }
+    .direction-label {
+      text-align: center; margin-bottom: 20px;
+    }
+    .direction-label h2 { color: #fff; font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .direction-label p { color: #888; font-size: 13px; }
+
+    /* ── Mockup Container ── */
+    .mockup {
+      max-width: 1200px; margin: 0 auto;
+      border-radius: 12px; overflow: hidden;
+      box-shadow: 0 25px 80px rgba(0,0,0,0.6);
+      background: var(--gray-50);
+    }
+    .browser-bar {
+      background: #e8e8e8; height: 36px; display: flex; align-items: center; padding: 0 16px; gap: 8px;
+      border-bottom: 1px solid #d0d0d0;
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot.red { background: #ff5f57; } .dot.yellow { background: #febc2e; } .dot.green { background: #28c840; }
+    .url-bar { flex: 1; background: #f5f5f5; border-radius: 6px; height: 22px; margin: 0 12px; font-size: 11px; color: #888; display: flex; align-items: center; padding: 0 10px; }
+
+    /* ── Shared App Shell ── */
+    .app-shell { display: flex; flex-direction: column; height: 600px; background: var(--gray-50); overflow: hidden; }
+    .topbar {
+      height: 56px; background: #fff; border-bottom: 1px solid var(--gray-200);
+      display: flex; align-items: center; gap: 12px; padding: 0 20px; flex-shrink: 0;
+    }
+    .logo { font-size: 14px; font-weight: 700; color: var(--gray-900); }
+    .search-box {
+      flex: 1; max-width: 320px; height: 34px; background: var(--gray-50);
+      border: 1px solid var(--gray-200); border-radius: 8px;
+      display: flex; align-items: center; padding: 0 12px; gap: 8px;
+    }
+    .search-box span { font-size: 12px; color: var(--gray-400); }
+    .share-btn {
+      margin-left: auto; background: var(--blue-600); color: #fff;
+      border: none; border-radius: 8px; padding: 7px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .main-area { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 220px; background: #fff; border-right: 1px solid var(--gray-200);
+      display: flex; flex-direction: column; flex-shrink: 0; padding: 16px 0;
+    }
+    .sidebar-section { padding: 0 12px 8px; }
+    .sidebar-label { font-size: 10px; font-weight: 600; color: var(--gray-400); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; padding: 0 4px; }
+    .sidebar-item {
+      display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+      border-radius: 7px; font-size: 12px; color: var(--gray-700); cursor: pointer;
+      transition: background 0.1s;
+    }
+    .sidebar-item:hover { background: var(--gray-50); }
+    .sidebar-item.active { background: var(--blue-50); color: var(--blue-600); font-weight: 600; }
+    .badge { width: 7px; height: 7px; border-radius: 50%; background: var(--blue-500); flex-shrink: 0; }
+    .badge.empty { background: transparent; }
+    .item-meta { font-size: 10px; color: var(--gray-400); margin-left: auto; }
+    .new-btn {
+      margin: 8px 12px 0; height: 32px; border: 1.5px dashed var(--gray-200);
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-size: 12px; color: var(--gray-400); cursor: pointer;
+      transition: all 0.15s;
+    }
+    .new-btn:hover { border-color: var(--blue-500); color: var(--blue-500); }
+
+    /* ── Content Area ── */
+    .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 20px; gap: 16px; }
+
+    /* ── KPI Cards ── */
+    .kpi-row { display: flex; gap: 12px; flex-shrink: 0; }
+    .kpi-card {
+      flex: 1; background: #fff; border: 1px solid var(--gray-200); border-radius: 12px;
+      padding: 16px 20px;
+    }
+    .kpi-label { font-size: 11px; color: var(--gray-500); margin-bottom: 6px; }
+    .kpi-value { font-size: 24px; font-weight: 700; color: var(--gray-900); font-variant-numeric: tabular-nums; }
+    .kpi-change { font-size: 11px; margin-top: 4px; display: flex; align-items: center; gap: 3px; }
+    .kpi-change.up { color: var(--emerald-500); }
+    .kpi-change.down { color: var(--red-400); }
+
+    /* ── Chart Area ── */
+    .chart-card {
+      flex: 1; background: #fff; border: 1px solid var(--gray-200); border-radius: 12px;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .chart-header {
+      display: flex; align-items: center; gap: 8px; padding: 14px 20px 12px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .chart-title { font-size: 13px; font-weight: 600; color: var(--gray-900); }
+    .tabs { display: flex; gap: 4px; margin-left: auto; }
+    .tab {
+      padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;
+      color: var(--gray-500); transition: all 0.1s;
+    }
+    .tab.active { background: var(--blue-50); color: var(--blue-600); font-weight: 600; }
+    .chart-body { flex: 1; display: flex; align-items: flex-end; padding: 16px 20px 8px; gap: 8px; position: relative; }
+    .chart-footer { padding: 8px 20px 12px; font-size: 10px; color: var(--gray-400); }
+
+    /* ── Bar Chart SVG ── */
+    .chart-bars { display: flex; align-items: flex-end; gap: 6px; flex: 1; height: 100%; }
+    .bar-group { display: flex; align-items: flex-end; gap: 2px; flex: 1; }
+    .bar { border-radius: 4px 4px 0 0; flex: 1; }
+
+    /* ── Legend ── */
+    .legend { display: flex; gap: 12px; padding: 0 20px 12px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--gray-500); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* ── Company Tags ── */
+    .company-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+    .company-tag {
+      display: flex; align-items: center; gap: 4px; padding: 3px 8px;
+      border-radius: 20px; font-size: 11px; font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════
+       DIRECTION B: Compact Sidebar
+    ═══════════════════════════════════ */
+    .sidebar-compact { width: 52px; }
+    .sidebar-compact .sidebar-icon {
+      width: 34px; height: 34px; border-radius: 8px; display: flex;
+      align-items: center; justify-content: center; font-size: 14px;
+      margin: 3px auto; cursor: pointer; color: var(--gray-500);
+    }
+    .sidebar-compact .sidebar-icon.active { background: var(--blue-50); color: var(--blue-600); }
+    .sidebar-compact .sidebar-icon:hover { background: var(--gray-50); }
+
+    /* ═══════════════════════════════════
+       DIRECTION C: Top Navigation
+    ═══════════════════════════════════ */
+    .top-nav {
+      background: #fff; border-bottom: 1px solid var(--gray-200);
+      display: flex; align-items: center; gap: 4px; padding: 0 20px; height: 44px; flex-shrink: 0;
+    }
+    .top-nav-tab {
+      padding: 8px 14px; border-radius: 8px; font-size: 12px;
+      cursor: pointer; color: var(--gray-500);
+    }
+    .top-nav-tab.active { background: var(--blue-50); color: var(--blue-600); font-weight: 600; }
+
+    /* ═══════════════════════════════════
+       DIRECTION D: Card Home
+    ═══════════════════════════════════ */
+    .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 20px; }
+    .analysis-card {
+      background: #fff; border: 1px solid var(--gray-200); border-radius: 12px;
+      padding: 16px; cursor: pointer; transition: box-shadow 0.15s;
+    }
+    .analysis-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .analysis-card-title { font-size: 13px; font-weight: 600; color: var(--gray-900); margin-bottom: 6px; }
+    .analysis-card-meta { font-size: 11px; color: var(--gray-400); }
+    .mini-chart { height: 48px; margin: 10px 0; display: flex; align-items: flex-end; gap: 3px; }
+    .mini-bar { border-radius: 2px 2px 0 0; flex: 1; }
+
+    /* ═══════════════════════════════════
+       DIRECTION E: Minimal / Data-First
+    ═══════════════════════════════════ */
+    .minimal-header {
+      height: 44px; background: #fff; border-bottom: 1px solid var(--gray-100);
+      display: flex; align-items: center; padding: 0 16px; gap: 12px;
+    }
+    .minimal-sidebar { width: 180px; background: var(--gray-50); border-right: 1px solid var(--gray-100); padding: 12px 8px; }
+
+    /* ═══════════════════════════════════
+       DIRECTION F: Analyst View (Multi-chart)
+    ═══════════════════════════════════ */
+    .grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .mini-chart-card {
+      background: #fff; border: 1px solid var(--gray-200); border-radius: 10px;
+      padding: 12px;
+    }
+    .mini-chart-title { font-size: 11px; font-weight: 600; color: var(--gray-700); margin-bottom: 8px; }
+
+    /* ── Highlight Box ── */
+    .direction-notes {
+      max-width: 1200px; margin: 16px auto 0;
+      background: #1a1a1a; border: 1px solid #333; border-radius: 10px;
+      padding: 16px 20px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;
+    }
+    .note-item h4 { font-size: 11px; font-weight: 600; color: #aaa; margin-bottom: 4px; }
+    .note-item p { font-size: 12px; color: #ddd; line-height: 1.5; }
+    .pros { color: var(--emerald-500) !important; }
+    .cons { color: var(--red-400) !important; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     Navigation
+══════════════════════════════════════════ -->
+<nav class="page-nav">
+  <h1>🎨 Design Directions</h1>
+  <button class="nav-btn active" onclick="show('A')">A. 클린 사이드바 ★</button>
+  <button class="nav-btn" onclick="show('B')">B. 아이콘 사이드바</button>
+  <button class="nav-btn" onclick="show('C')">C. 탑 네비게이션</button>
+  <button class="nav-btn" onclick="show('D')">D. 카드 홈</button>
+  <button class="nav-btn" onclick="show('E')">E. 미니멀 데이터퍼스트</button>
+  <button class="nav-btn" onclick="show('F')">F. 멀티차트 분석가 뷰</button>
+</nav>
+
+
+<!-- ══════════════════════════════════════════
+     A: 클린 사이드바 (Recommended)
+══════════════════════════════════════════ -->
+<div class="direction visible" id="dir-A">
+  <div class="direction-label">
+    <h2>Direction A — 클린 사이드바 <span style="color:var(--blue-500)">★ Recommended</span></h2>
+    <p>Figma + Notion 패턴 결합. 좌측 분석 세트 목록 + 우측 대형 차트. 즉시 재진입·공유 최적화.</p>
+  </div>
+
+  <div class="mockup">
+    <div class="browser-bar">
+      <div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div>
+      <div class="url-bar">app.dartdash.internal</div>
+    </div>
+    <div class="app-shell">
+      <!-- Topbar -->
+      <div class="topbar">
+        <div class="logo">DART<span style="color:var(--blue-600)">·</span>대시</div>
+        <div class="search-box">
+          <span style="color:var(--gray-400)">🔍</span>
+          <span>기업명 입력 (예: 삼성전자)</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+          <div style="display:flex;gap:6px">
+            <div class="company-tag" style="background:var(--blue-50);color:var(--blue-600)">● 삼성전자</div>
+            <div class="company-tag" style="background:#F0FDF4;color:#16A34A">카카오</div>
+            <div class="company-tag" style="background:#FFF7ED;color:#C2410C">LG화학</div>
+          </div>
+          <button class="share-btn">🔗 공유</button>
+        </div>
+      </div>
+      <!-- Main -->
+      <div class="main-area">
+        <!-- Sidebar -->
+        <div class="sidebar">
+          <div class="sidebar-section">
+            <div class="sidebar-label">내 분석 세트</div>
+            <div class="sidebar-item active">
+              <div class="badge"></div>
+              <div>
+                <div>반도체 Top3</div>
+                <div style="font-size:10px;color:var(--blue-500)">● 방금 갱신됨</div>
+              </div>
+            </div>
+            <div class="sidebar-item">
+              <div class="badge empty"></div>
+              <div>IT 플랫폼 비교</div>
+              <span class="item-meta">3Q</span>
+            </div>
+            <div class="sidebar-item">
+              <div class="badge empty"></div>
+              <div>화학·소재</div>
+              <span class="item-meta">2Q</span>
+            </div>
+          </div>
+          <div class="sidebar-section" style="margin-top:8px">
+            <div class="sidebar-label">팀 공유</div>
+            <div class="sidebar-item">
+              <div class="badge empty"></div>
+              <div>제약 섹터 분석</div>
+            </div>
+            <div class="sidebar-item">
+              <div class="badge empty"></div>
+              <div>2024 연간 비교</div>
+            </div>
+          </div>
+          <div class="new-btn">+ 새 분석 세트</div>
+        </div>
+        <!-- Content -->
+        <div class="content">
+          <div class="kpi-row">
+            <div class="kpi-card">
+              <div class="kpi-label">매출액 합산 (최근 분기)</div>
+              <div class="kpi-value">28.4조</div>
+              <div class="kpi-change up">▲ 12.3% YoY</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">영업이익 합산</div>
+              <div class="kpi-value">4.1조</div>
+              <div class="kpi-change down">▼ 3.2% YoY</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">순이익 합산</div>
+              <div class="kpi-value">2.9조</div>
+              <div class="kpi-change up">▲ 7.8% YoY</div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title">매출액 추이 (5개년)</div>
+              <div class="tabs">
+                <div class="tab active">P&amp;L</div>
+                <div class="tab">B/S</div>
+                <div class="tab">현금흐름</div>
+              </div>
+            </div>
+            <div class="chart-body">
+              <div class="chart-bars">
+                <!-- 2020 -->
+                <div class="bar-group">
+                  <div class="bar" style="height:55%;background:var(--blue-500);opacity:0.7"></div>
+                  <div class="bar" style="height:35%;background:var(--emerald-500);opacity:0.7"></div>
+                  <div class="bar" style="height:45%;background:var(--orange-400);opacity:0.7"></div>
+                </div>
+                <div class="bar-group">
+                  <div class="bar" style="height:62%;background:var(--blue-500);opacity:0.8"></div>
+                  <div class="bar" style="height:42%;background:var(--emerald-500);opacity:0.8"></div>
+                  <div class="bar" style="height:48%;background:var(--orange-400);opacity:0.8"></div>
+                </div>
+                <div class="bar-group">
+                  <div class="bar" style="height:70%;background:var(--blue-500);opacity:0.85"></div>
+                  <div class="bar" style="height:55%;background:var(--emerald-500);opacity:0.85"></div>
+                  <div class="bar" style="height:52%;background:var(--orange-400);opacity:0.85"></div>
+                </div>
+                <div class="bar-group">
+                  <div class="bar" style="height:75%;background:var(--blue-500)"></div>
+                  <div class="bar" style="height:60%;background:var(--emerald-500)"></div>
+                  <div class="bar" style="height:58%;background:var(--orange-400)"></div>
+                </div>
+                <div class="bar-group">
+                  <div class="bar" style="height:85%;background:var(--blue-500)"></div>
+                  <div class="bar" style="height:68%;background:var(--emerald-500)"></div>
+                  <div class="bar" style="height:65%;background:var(--orange-400)"></div>
+                </div>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--blue-500)"></div>삼성전자</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--emerald-500)"></div>카카오</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--orange-400)"></div>LG화학</div>
+            </div>
+            <div class="chart-footer">DART 기준 2024.3Q · 자동 갱신</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="direction-notes">
+    <div class="note-item"><h4>핵심 특징</h4><p>좌측 260px 사이드바에 분석 세트 목록. ● 업데이트 표시. 최상단 검색창 + 공유버튼. 와이드 화면 최적.</p></div>
+    <div class="note-item"><h4 class="pros">장점</h4><p class="pros">즉시 재진입 최적화. Figma·Notion 멘탈 모델. 팀/개인 세트 구분. 분기 시즌 1클릭 재진입.</p></div>
+    <div class="note-item"><h4 class="cons">고려사항</h4><p class="cons">노트북 단독 사용 시 사이드바가 공간 차지. 세트가 많을 경우 스크롤 필요.</p></div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     B: 아이콘 사이드바 (Compact)
+══════════════════════════════════════════ -->
+<div class="direction" id="dir-B">
+  <div class="direction-label">
+    <h2>Direction B — 아이콘 사이드바 (컴팩트)</h2>
+    <p>52px 아이콘 전용 사이드바. 차트 공간 극대화. 호버 시 툴팁 또는 플라이아웃 패널.</p>
+  </div>
+
+  <div class="mockup">
+    <div class="browser-bar">
+      <div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div>
+      <div class="url-bar">app.dartdash.internal</div>
+    </div>
+    <div class="app-shell">
+      <div class="topbar">
+        <div class="logo">DART<span style="color:var(--blue-600)">·</span>대시</div>
+        <div class="search-box" style="max-width:400px">
+          <span style="color:var(--gray-400)">🔍</span>
+          <span>기업명 입력...</span>
+        </div>
+        <button class="share-btn" style="margin-left:auto">🔗 공유</button>
+      </div>
+      <div class="main-area">
+        <!-- Compact Sidebar -->
+        <div class="sidebar sidebar-compact" style="width:52px;padding:12px 0">
+          <div class="sidebar-icon active" title="내 세트">📊</div>
+          <div class="sidebar-icon" title="팀 공유">👥</div>
+          <div style="height:1px;background:var(--gray-100);margin:8px 6px"></div>
+          <div class="sidebar-icon" title="새 세트">＋</div>
+          <div class="sidebar-icon" title="설정" style="margin-top:auto">⚙️</div>
+        </div>
+        <!-- Content (wider) -->
+        <div class="content" style="padding:20px 24px">
+          <div class="kpi-row">
+            <div class="kpi-card">
+              <div class="kpi-label">매출액</div>
+              <div class="kpi-value">28.4조</div>
+              <div class="kpi-change up">▲ 12.3%</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">영업이익</div>
+              <div class="kpi-value">4.1조</div>
+              <div class="kpi-change down">▼ 3.2%</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">순이익</div>
+              <div class="kpi-value">2.9조</div>
+              <div class="kpi-change up">▲ 7.8%</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">영업이익률</div>
+              <div class="kpi-value">14.4%</div>
+              <div class="kpi-change up">▲ 1.2%p</div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title">반도체 Top3 — 매출액 추이</div>
+              <div style="font-size:11px;color:var(--blue-500);margin-left:8px">● 방금 갱신됨</div>
+              <div class="tabs" style="margin-left:auto">
+                <div class="tab active">P&amp;L</div>
+                <div class="tab">B/S</div>
+                <div class="tab">현금흐름</div>
+              </div>
+            </div>
+            <div class="chart-body">
+              <div class="chart-bars">
+                <div class="bar-group"><div class="bar" style="height:55%;background:var(--blue-500)"></div><div class="bar" style="height:40%;background:var(--emerald-500)"></div><div class="bar" style="height:48%;background:var(--orange-400)"></div></div>
+                <div class="bar-group"><div class="bar" style="height:65%;background:var(--blue-500)"></div><div class="bar" style="height:48%;background:var(--emerald-500)"></div><div class="bar" style="height:52%;background:var(--orange-400)"></div></div>
+                <div class="bar-group"><div class="bar" style="height:72%;background:var(--blue-500)"></div><div class="bar" style="height:58%;background:var(--emerald-500)"></div><div class="bar" style="height:55%;background:var(--orange-400)"></div></div>
+                <div class="bar-group"><div class="bar" style="height:78%;background:var(--blue-500)"></div><div class="bar" style="height:63%;background:var(--emerald-500)"></div><div class="bar" style="height:60%;background:var(--orange-400)"></div></div>
+                <div class="bar-group"><div class="bar" style="height:88%;background:var(--blue-500)"></div><div class="bar" style="height:70%;background:var(--emerald-500)"></div><div class="bar" style="height:66%;background:var(--orange-400)"></div></div>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--blue-500)"></div>삼성전자</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--emerald-500)"></div>SK하이닉스</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--orange-400)"></div>DB하이텍</div>
+            </div>
+            <div class="chart-footer">DART 기준 2024.3Q · 자동 갱신</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="direction-notes">
+    <div class="note-item"><h4>핵심 특징</h4><p>52px 아이콘 사이드바로 차트 영역 극대화. 호버 시 플라이아웃으로 세트 목록 노출. KPI 카드 4개 가능.</p></div>
+    <div class="note-item"><h4 class="pros">장점</h4><p class="pros">차트 공간이 가장 넓음. 노트북 단독 환경에서 유리. 데이터에 집중되는 시각적 느낌.</p></div>
+    <div class="note-item"><h4 class="cons">고려사항</h4><p class="cons">세트 목록이 항상 보이지 않아 즉시 재진입 마찰 증가. ● 업데이트 표시 공간 부족.</p></div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     C: 탑 네비게이션
+══════════════════════════════════════════ -->
+<div class="direction" id="dir-C">
+  <div class="direction-label">
+    <h2>Direction C — 탑 네비게이션</h2>
+    <p>사이드바 없음. 상단 탭으로 분석 세트 전환. 전통적인 대시보드 레이아웃.</p>
+  </div>
+
+  <div class="mockup">
+    <div class="browser-bar">
+      <div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div>
+      <div class="url-bar">app.dartdash.internal</div>
+    </div>
+    <div class="app-shell">
+      <div class="topbar">
+        <div class="logo">DART<span style="color:var(--blue-600)">·</span>대시</div>
+        <div class="search-box">
+          <span>🔍</span><span style="color:var(--gray-400)">기업명 검색...</span>
+        </div>
+        <button class="share-btn" style="margin-left:auto">🔗 공유</button>
+      </div>
+      <!-- Top Nav Tabs -->
+      <div class="top-nav">
+        <div class="top-nav-tab active">● 반도체 Top3</div>
+        <div class="top-nav-tab">IT 플랫폼</div>
+        <div class="top-nav-tab">화학·소재</div>
+        <div class="top-nav-tab" style="color:var(--blue-600)">+ 새 세트</div>
+        <div style="margin-left:auto;font-size:11px;color:var(--gray-400)">팀 공유 세트 2개</div>
+      </div>
+      <!-- Content -->
+      <div class="content" style="padding:20px">
+        <div class="kpi-row">
+          <div class="kpi-card">
+            <div class="kpi-label">매출액</div>
+            <div class="kpi-value">28.4조</div>
+            <div class="kpi-change up">▲ 12.3% YoY</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">영업이익</div>
+            <div class="kpi-value">4.1조</div>
+            <div class="kpi-change down">▼ 3.2% YoY</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">순이익</div>
+            <div class="kpi-value">2.9조</div>
+            <div class="kpi-change up">▲ 7.8% YoY</div>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">반도체 Top3 — 연간 실적 추이</div>
+            <div class="tabs" style="margin-left:auto">
+              <div class="tab active">P&amp;L</div>
+              <div class="tab">B/S</div>
+              <div class="tab">현금흐름</div>
+            </div>
+          </div>
+          <div class="chart-body">
+            <div class="chart-bars">
+              <div class="bar-group"><div class="bar" style="height:55%;background:var(--blue-500)"></div><div class="bar" style="height:38%;background:var(--emerald-500)"></div><div class="bar" style="height:45%;background:var(--orange-400)"></div></div>
+              <div class="bar-group"><div class="bar" style="height:65%;background:var(--blue-500)"></div><div class="bar" style="height:50%;background:var(--emerald-500)"></div><div class="bar" style="height:50%;background:var(--orange-400)"></div></div>
+              <div class="bar-group"><div class="bar" style="height:72%;background:var(--blue-500)"></div><div class="bar" style="height:58%;background:var(--emerald-500)"></div><div class="bar" style="height:54%;background:var(--orange-400)"></div></div>
+              <div class="bar-group"><div class="bar" style="height:80%;background:var(--blue-500)"></div><div class="bar" style="height:65%;background:var(--emerald-500)"></div><div class="bar" style="height:60%;background:var(--orange-400)"></div></div>
+              <div class="bar-group"><div class="bar" style="height:90%;background:var(--blue-500)"></div><div class="bar" style="height:72%;background:var(--emerald-500)"></div><div class="bar" style="height:68%;background:var(--orange-400)"></div></div>
+            </div>
+          </div>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--blue-500)"></div>삼성전자</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--emerald-500)"></div>SK하이닉스</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--orange-400)"></div>DB하이텍</div>
+          </div>
+          <div class="chart-footer">DART 기준 2024.3Q · 자동 갱신</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="direction-notes">
+    <div class="note-item"><h4>핵심 특징</h4><p>상단 탭으로 분석 세트 전환. 사이드바 없어서 전체 너비 활용. 전통적 대시보드 패턴.</p></div>
+    <div class="note-item"><h4 class="pros">장점</h4><p class="pros">사용자가 직관적으로 이해. 탭이 현재 세트를 항상 명시. 수평 공간 최대 활용.</p></div>
+    <div class="note-item"><h4 class="cons">고려사항</h4><p class="cons">세트가 많으면 탭 오버플로우. 팀/개인 세트 구분 어려움. 분기 업데이트 ● 표시 공간 부족.</p></div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     D: 카드 홈 (Notion-inspired)
+══════════════════════════════════════════ -->
+<div class="direction" id="dir-D">
+  <div class="direction-label">
+    <h2>Direction D — 카드 홈</h2>
+    <p>홈 = 분석 세트 카드 그리드. 카드 클릭 시 상세 차트로 드릴다운. Notion 느낌.</p>
+  </div>
+
+  <div class="mockup">
+    <div class="browser-bar">
+      <div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div>
+      <div class="url-bar">app.dartdash.internal / home</div>
+    </div>
+    <div class="app-shell">
+      <div class="topbar">
+        <div class="logo">DART<span style="color:var(--blue-600)">·</span>대시</div>
+        <div class="search-box"><span>🔍</span><span style="color:var(--gray-400)">기업명 검색...</span></div>
+        <button class="share-btn" style="margin-left:auto">🔗 공유</button>
+      </div>
+      <div style="flex:1;overflow:auto;background:var(--gray-50)">
+        <div style="padding:20px 24px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+            <h2 style="font-size:16px;font-weight:700;color:var(--gray-900)">내 분석 세트</h2>
+            <span style="font-size:11px;background:var(--blue-50);color:var(--blue-600);padding:2px 8px;border-radius:20px">● 1개 업데이트</span>
+          </div>
+          <div class="card-grid">
+            <div class="analysis-card" style="border-color:var(--blue-200);box-shadow:0 0 0 2px var(--blue-100)">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                <div class="analysis-card-title">반도체 Top3</div>
+                <span style="font-size:10px;background:var(--blue-50);color:var(--blue-600);padding:1px 6px;border-radius:10px">● 갱신됨</span>
+              </div>
+              <div class="analysis-card-meta">삼성전자 · SK하이닉스 · DB하이텍 · 2024.3Q</div>
+              <div class="mini-chart">
+                <div class="mini-bar" style="height:60%;background:var(--blue-200)"></div>
+                <div class="mini-bar" style="height:70%;background:var(--blue-300)"></div>
+                <div class="mini-bar" style="height:65%;background:var(--blue-400)"></div>
+                <div class="mini-bar" style="height:80%;background:var(--blue-500)"></div>
+                <div class="mini-bar" style="height:90%;background:var(--blue-600)"></div>
+              </div>
+              <div style="font-size:11px;color:var(--gray-500)">매출 28.4조 · 영업이익 4.1조</div>
+            </div>
+            <div class="analysis-card">
+              <div class="analysis-card-title">IT 플랫폼 비교</div>
+              <div class="analysis-card-meta">카카오 · 네이버 · 쿠팡 · 2024.3Q</div>
+              <div class="mini-chart">
+                <div class="mini-bar" style="height:55%;background:var(--emerald-200)"></div>
+                <div class="mini-bar" style="height:60%;background:var(--emerald-300)"></div>
+                <div class="mini-bar" style="height:58%;background:var(--emerald-400)"></div>
+                <div class="mini-bar" style="height:65%;background:var(--emerald-500)"></div>
+                <div class="mini-bar" style="height:70%;background:var(--emerald-500)"></div>
+              </div>
+              <div style="font-size:11px;color:var(--gray-500)">매출 12.1조 · 영업이익 1.3조</div>
+            </div>
+            <div class="analysis-card">
+              <div class="analysis-card-title">화학·소재</div>
+              <div class="analysis-card-meta">LG화학 · 롯데케미칼 · 2024.2Q</div>
+              <div class="mini-chart">
+                <div class="mini-bar" style="height:70%;background:#FED7AA"></div>
+                <div class="mini-bar" style="height:65%;background:#FDBA74"></div>
+                <div class="mini-bar" style="height:60%;background:#FB923C"></div>
+                <div class="mini-bar" style="height:55%;background:#F97316"></div>
+                <div class="mini-bar" style="height:58%;background:#EA580C"></div>
+              </div>
+              <div style="font-size:11px;color:var(--gray-500)">매출 8.9조 · 영업이익 0.4조</div>
+            </div>
+            <div class="analysis-card" style="border:1.5px dashed var(--gray-200);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;color:var(--gray-400)">
+              <div style="font-size:22px">+</div>
+              <div style="font-size:12px">새 분석 세트</div>
+            </div>
+          </div>
+          <div style="margin-top:20px;font-size:13px;font-weight:600;color:var(--gray-700);margin-bottom:12px">팀 공유 세트</div>
+          <div class="card-grid">
+            <div class="analysis-card" style="opacity:0.8">
+              <div class="analysis-card-title">제약 섹터 분석</div>
+              <div class="analysis-card-meta">공유: 김민수 · 2024.3Q</div>
+            </div>
+            <div class="analysis-card" style="opacity:0.8">
+              <div class="analysis-card-title">2024 연간 비교</div>
+              <div class="analysis-card-meta">공유: 전체 팀 · 2024</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="direction-notes">
+    <div class="note-item"><h4>핵심 특징</h4><p>홈 = 카드 그리드. 미니 차트 프리뷰로 내용 파악. 클릭 시 전체 차트 화면으로 전환.</p></div>
+    <div class="note-item"><h4 class="pros">장점</h4><p class="pros">분석 세트 한눈에 파악. 팀/개인 구분 명확. Notion 느낌으로 친숙. ● 업데이트 배지 자연스럽게 표시.</p></div>
+    <div class="note-item"><h4 class="cons">고려사항</h4><p class="cons">차트로 가는 클릭이 1단계 추가됨. 세트 수 많을 경우 스크롤 많아짐.</p></div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     E: 미니멀 데이터퍼스트
+══════════════════════════════════════════ -->
+<div class="direction" id="dir-E">
+  <div class="direction-label">
+    <h2>Direction E — 미니멀 데이터퍼스트</h2>
+    <p>헤더·UI 크롬 최소화. 차트가 화면 대부분 차지. 극도의 단순함.</p>
+  </div>
+
+  <div class="mockup">
+    <div class="browser-bar">
+      <div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div>
+      <div class="url-bar">app.dartdash.internal</div>
+    </div>
+    <div class="app-shell" style="background:#fff">
+      <!-- Minimal header -->
+      <div class="minimal-header">
+        <div style="font-size:13px;font-weight:700;color:var(--gray-900)">DART대시</div>
+        <div style="width:1px;height:16px;background:var(--gray-200);margin:0 4px"></div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div style="font-size:12px;font-weight:500;color:var(--blue-600)">반도체 Top3</div>
+          <div style="font-size:11px;color:var(--gray-400)">▾</div>
+        </div>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <div style="font-size:11px;color:var(--blue-500)">● 갱신됨</div>
+          <div style="font-size:12px;color:var(--gray-400)">P&amp;L · B/S · 현금흐름</div>
+          <button class="share-btn" style="height:30px;padding:0 12px;font-size:11px">공유</button>
+        </div>
+      </div>
+      <div class="main-area">
+        <!-- Minimal sidebar -->
+        <div class="minimal-sidebar">
+          <div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.08em;margin-bottom:8px">MY SETS</div>
+          <div style="font-size:12px;color:var(--blue-600);font-weight:600;padding:5px 6px;background:var(--blue-50);border-radius:6px;margin-bottom:2px">● 반도체 Top3</div>
+          <div style="font-size:12px;color:var(--gray-500);padding:5px 6px;border-radius:6px;margin-bottom:2px">IT 플랫폼</div>
+          <div style="font-size:12px;color:var(--gray-500);padding:5px 6px;border-radius:6px;margin-bottom:8px">화학·소재</div>
+          <div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.08em;margin-bottom:8px">TEAM</div>
+          <div style="font-size:12px;color:var(--gray-500);padding:5px 6px;border-radius:6px;margin-bottom:2px">제약 섹터</div>
+          <div style="font-size:12px;color:var(--gray-500);padding:5px 6px;border-radius:6px">연간 비교</div>
+        </div>
+        <!-- Full chart content -->
+        <div style="flex:1;display:flex;flex-direction:column;padding:16px;gap:12px">
+          <div style="display:flex;gap:10px">
+            <div style="flex:1;text-align:center">
+              <div style="font-size:10px;color:var(--gray-400);margin-bottom:3px">매출액</div>
+              <div style="font-size:28px;font-weight:700;color:var(--gray-900);font-variant-numeric:tabular-nums">28.4조</div>
+              <div style="font-size:11px;color:var(--emerald-500)">▲ 12.3%</div>
+            </div>
+            <div style="width:1px;background:var(--gray-100)"></div>
+            <div style="flex:1;text-align:center">
+              <div style="font-size:10px;color:var(--gray-400);margin-bottom:3px">영업이익</div>
+              <div style="font-size:28px;font-weight:700;color:var(--gray-900)">4.1조</div>
+              <div style="font-size:11px;color:var(--red-400)">▼ 3.2%</div>
+            </div>
+            <div style="width:1px;background:var(--gray-100)"></div>
+            <div style="flex:1;text-align:center">
+              <div style="font-size:10px;color:var(--gray-400);margin-bottom:3px">순이익</div>
+              <div style="font-size:28px;font-weight:700;color:var(--gray-900)">2.9조</div>
+              <div style="font-size:11px;color:var(--emerald-500)">▲ 7.8%</div>
+            </div>
+          </div>
+          <div style="flex:1;background:var(--gray-50);border-radius:10px;padding:16px;display:flex;flex-direction:column">
+            <div class="chart-bars" style="flex:1">
+              <div class="bar-group"><div class="bar" style="height:55%;background:var(--blue-500)"></div><div class="bar" style="height:38%;background:var(--emerald-500)"></div><div class="bar" style="height:45%;background:var(--orange-400)"></div></div>
+              <div class="bar-group"><div class="bar" style="height:65%;background:var(--blue-500)"></div><div class="bar" style="height:50%;background:var(--emerald-500)"></div><div class="bar" style="height:50%;background:var(--orange-400)"></div></div>
+              <div class="bar-group"><div class="bar" style="height:72%;background:var(--blue-500)"></div><div class="bar" style="height:58%;background:var(--emerald-500)"></div><div class="bar" style="height:54%;background:var(--orange-400)"></div></div>
+              <div class="bar-group"><div class="bar" style="height:80%;background:var(--blue-500)"></div><div class="bar" style="height:65%;background:var(--emerald-500)"></div><div class="bar" style="height:60%;background:var(--orange-400)"></div></div>
+              <div class="bar-group"><div class="bar" style="height:90%;background:var(--blue-500)"></div><div class="bar" style="height:72%;background:var(--emerald-500)"></div><div class="bar" style="height:68%;background:var(--orange-400)"></div></div>
+            </div>
+            <div style="display:flex;gap:12px;margin-top:8px">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--blue-500)"></div>삼성전자</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--emerald-500)"></div>SK하이닉스</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--orange-400)"></div>DB하이텍</div>
+              <div style="margin-left:auto;font-size:10px;color:var(--gray-400)">DART 기준 2024.3Q</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="direction-notes">
+    <div class="note-item"><h4>핵심 특징</h4><p>모든 UI 크롬 최소화. KPI 숫자를 상단에 크게 강조. 차트 영역이 화면의 70% 이상.</p></div>
+    <div class="note-item"><h4 class="pros">장점</h4><p class="pros">데이터에 완전히 집중되는 느낌. 발표·공유 화면으로 최적. "도구가 안 보이는" 경험.</p></div>
+    <div class="note-item"><h4 class="cons">고려사항</h4><p class="cons">처음 사용자에게 네비게이션 불명확. 기능 접근성 낮아짐. 학습 곡선 증가 가능.</p></div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     F: 멀티차트 분석가 뷰
+══════════════════════════════════════════ -->
+<div class="direction" id="dir-F">
+  <div class="direction-label">
+    <h2>Direction F — 멀티차트 분석가 뷰</h2>
+    <p>한 화면에 2×2 그리드로 여러 차트 동시 조망. 파워 유저 / 비교 분석 집중.</p>
+  </div>
+
+  <div class="mockup">
+    <div class="browser-bar">
+      <div class="dot red"></div><div class="dot yellow"></div><div class="dot green"></div>
+      <div class="url-bar">app.dartdash.internal</div>
+    </div>
+    <div class="app-shell">
+      <div class="topbar">
+        <div class="logo">DART<span style="color:var(--blue-600)">·</span>대시</div>
+        <div class="search-box"><span>🔍</span><span style="color:var(--gray-400)">기업명 추가...</span></div>
+        <div style="display:flex;gap:6px;margin-left:8px">
+          <div class="company-tag" style="background:var(--blue-50);color:var(--blue-600);padding:3px 8px;border-radius:12px;font-size:11px;font-weight:500">삼성전자 ×</div>
+          <div class="company-tag" style="background:#F0FDF4;color:#16A34A;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:500">카카오 ×</div>
+          <div class="company-tag" style="background:#FFF7ED;color:#C2410C;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:500">LG화학 ×</div>
+        </div>
+        <button class="share-btn" style="margin-left:auto">🔗 공유</button>
+      </div>
+      <div class="main-area">
+        <div class="sidebar" style="width:180px">
+          <div class="sidebar-section">
+            <div class="sidebar-label">내 분석 세트</div>
+            <div class="sidebar-item active">● 반도체 Top3</div>
+            <div class="sidebar-item">IT 플랫폼</div>
+            <div class="sidebar-item">화학·소재</div>
+          </div>
+          <div class="new-btn">+ 새 세트</div>
+        </div>
+        <div style="flex:1;padding:12px;overflow:auto">
+          <div class="grid-2x2">
+            <div class="mini-chart-card">
+              <div class="mini-chart-title">매출액 추이</div>
+              <div class="chart-bars" style="height:100px">
+                <div class="bar-group"><div class="bar" style="height:55%;background:var(--blue-500)"></div><div class="bar" style="height:40%;background:var(--emerald-500)"></div><div class="bar" style="height:48%;background:var(--orange-400)"></div></div>
+                <div class="bar-group"><div class="bar" style="height:65%;background:var(--blue-500)"></div><div class="bar" style="height:50%;background:var(--emerald-500)"></div><div class="bar" style="height:52%;background:var(--orange-400)"></div></div>
+                <div class="bar-group"><div class="bar" style="height:80%;background:var(--blue-500)"></div><div class="bar" style="height:62%;background:var(--emerald-500)"></div><div class="bar" style="height:60%;background:var(--orange-400)"></div></div>
+                <div class="bar-group"><div class="bar" style="height:90%;background:var(--blue-500)"></div><div class="bar" style="height:70%;background:var(--emerald-500)"></div><div class="bar" style="height:68%;background:var(--orange-400)"></div></div>
+              </div>
+              <div style="font-size:10px;color:var(--gray-400);margin-top:6px">DART 기준 2024.3Q</div>
+            </div>
+            <div class="mini-chart-card">
+              <div class="mini-chart-title">영업이익 추이</div>
+              <div class="chart-bars" style="height:100px">
+                <div class="bar-group"><div class="bar" style="height:40%;background:var(--blue-500);opacity:0.7"></div><div class="bar" style="height:30%;background:var(--emerald-500);opacity:0.7"></div><div class="bar" style="height:25%;background:var(--orange-400);opacity:0.7"></div></div>
+                <div class="bar-group"><div class="bar" style="height:55%;background:var(--blue-500);opacity:0.8"></div><div class="bar" style="height:40%;background:var(--emerald-500);opacity:0.8"></div><div class="bar" style="height:30%;background:var(--orange-400);opacity:0.8"></div></div>
+                <div class="bar-group"><div class="bar" style="height:65%;background:var(--blue-500)"></div><div class="bar" style="height:50%;background:var(--emerald-500)"></div><div class="bar" style="height:38%;background:var(--orange-400)"></div></div>
+                <div class="bar-group"><div class="bar" style="height:75%;background:var(--blue-500)"></div><div class="bar" style="height:55%;background:var(--emerald-500)"></div><div class="bar" style="height:42%;background:var(--orange-400)"></div></div>
+              </div>
+              <div style="font-size:10px;color:var(--gray-400);margin-top:6px">DART 기준 2024.3Q</div>
+            </div>
+            <div class="mini-chart-card">
+              <div class="mini-chart-title">영업이익률 (%)</div>
+              <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--gray-500);margin-bottom:2px"><span>삼성전자</span><span style="color:var(--blue-600);font-weight:600">14.4%</span></div>
+                  <div style="height:8px;background:var(--gray-100);border-radius:4px"><div style="width:72%;height:100%;background:var(--blue-500);border-radius:4px"></div></div>
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--gray-500);margin-bottom:2px"><span>카카오</span><span style="color:var(--emerald-500);font-weight:600">10.7%</span></div>
+                  <div style="height:8px;background:var(--gray-100);border-radius:4px"><div style="width:54%;height:100%;background:var(--emerald-500);border-radius:4px"></div></div>
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--gray-500);margin-bottom:2px"><span>LG화학</span><span style="color:var(--orange-400);font-weight:600">4.5%</span></div>
+                  <div style="height:8px;background:var(--gray-100);border-radius:4px"><div style="width:22%;height:100%;background:var(--orange-400);border-radius:4px"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="mini-chart-card">
+              <div class="mini-chart-title">순이익 추이</div>
+              <div class="chart-bars" style="height:100px">
+                <div class="bar-group"><div class="bar" style="height:35%;background:var(--blue-500);opacity:0.7"></div><div class="bar" style="height:28%;background:var(--emerald-500);opacity:0.7"></div><div class="bar" style="height:22%;background:var(--orange-400);opacity:0.7"></div></div>
+                <div class="bar-group"><div class="bar" style="height:48%;background:var(--blue-500);opacity:0.8"></div><div class="bar" style="height:35%;background:var(--emerald-500);opacity:0.8"></div><div class="bar" style="height:27%;background:var(--orange-400);opacity:0.8"></div></div>
+                <div class="bar-group"><div class="bar" style="height:58%;background:var(--blue-500)"></div><div class="bar" style="height:44%;background:var(--emerald-500)"></div><div class="bar" style="height:32%;background:var(--orange-400)"></div></div>
+                <div class="bar-group"><div class="bar" style="height:70%;background:var(--blue-500)"></div><div class="bar" style="height:50%;background:var(--emerald-500)"></div><div class="bar" style="height:38%;background:var(--orange-400)"></div></div>
+              </div>
+              <div style="font-size:10px;color:var(--gray-400);margin-top:6px">DART 기준 2024.3Q</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="direction-notes">
+    <div class="note-item"><h4>핵심 특징</h4><p>매출·영업이익·이익률·순이익을 2×2 그리드로 동시 조망. 한 화면에서 종합 분석 가능.</p></div>
+    <div class="note-item"><h4 class="pros">장점</h4><p class="pros">분기 보고서 작성 시 여러 지표 한눈에 비교. 파워 유저에게 최적. 발표자료 준비에 효율적.</p></div>
+    <div class="note-item"><h4 class="cons">고려사항</h4><p class="cons">각 차트 크기 작아 디테일 확인 어려움. 처음 사용자에게 복잡해 보일 수 있음. 노트북 단독 시 빡빡함.</p></div>
+  </div>
+</div>
+
+<script>
+  function show(id) {
+    document.querySelectorAll('.direction').forEach(d => d.classList.remove('visible'));
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('dir-' + id).classList.add('visible');
+    event.target.classList.add('active');
+  }
+</script>
+</body>
+</html>

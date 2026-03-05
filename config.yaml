@@ -1,0 +1,4 @@
+llm:
+  provider: "google"
+  model: "gemini-3-pro
+  api_key: AIzaSyDMFkcFUjZWa6EH9svQG9WXCcjKzKH-EJs
