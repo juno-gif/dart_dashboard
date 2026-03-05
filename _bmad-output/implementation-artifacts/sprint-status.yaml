@@ -45,8 +45,8 @@ development_status:
   # FRs: FR1, FR2, FR6, FR7, FR8, FR11, FR12, FR27, FR32, FR33, FR34, FR35
   # ─────────────────────────────────────────────
   epic-1: in-progress
-  1-1-project-init-and-deployment-pipeline: review
-  1-2-dart-data-collection-and-db-schema: backlog
+  1-1-project-init-and-deployment-pipeline: done
+  1-2-dart-data-collection-and-db-schema: review
   1-3-company-search: backlog
   1-4-single-company-pl-chart-and-kpi: backlog
   1-5-multi-company-pl-comparison-chart: backlog

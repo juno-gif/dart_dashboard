@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import health
+from app.api.v1 import health, sync
 from app.core.config import settings
 
 
@@ -46,11 +46,11 @@ app.add_middleware(
 
 # 라우터 등록
 app.include_router(health.router, prefix="/api/v1")
+app.include_router(sync.router, prefix="/api/v1")
 
 # TODO: 후속 스토리에서 라우터 추가
-# from app.api.v1 import companies, financials, analysis_sets, shared, sync
+# from app.api.v1 import companies, financials, analysis_sets, shared
 # app.include_router(companies.router, prefix="/api/v1")
 # app.include_router(financials.router, prefix="/api/v1")
 # app.include_router(analysis_sets.router, prefix="/api/v1")
 # app.include_router(shared.router, prefix="/api/v1")
-# app.include_router(sync.router, prefix="/api/v1")

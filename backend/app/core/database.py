@@ -4,12 +4,20 @@ Supabase 클라이언트 (Service Role Key 사용)
 ⚠️ Service Key는 절대 프론트엔드에 전달 금지
 [Source: architecture.md - Authentication & Security]
 """
+from typing import Optional
 
-# TODO: Story 1.2에서 구현
-# from supabase import create_client, Client
-# from app.core.config import settings
+from supabase import create_client, Client
+from app.core.config import settings
 
-# supabase_client: Client = create_client(
-#     settings.SUPABASE_URL,
-#     settings.SUPABASE_SERVICE_KEY
-# )
+_supabase_client: Optional[Client] = None
+
+
+def get_supabase_client() -> Client:
+    """Supabase 클라이언트 싱글턴 반환 (Service Role Key — RLS 우회)"""
+    global _supabase_client
+    if _supabase_client is None:
+        _supabase_client = create_client(
+            settings.SUPABASE_URL,
+            settings.SUPABASE_SERVICE_KEY,
+        )
+    return _supabase_client
