@@ -1,31 +1,34 @@
 """
 FastAPI 애플리케이션 진입점
 - CORS: Vercel 배포 도메인만 허용 (ALLOWED_ORIGINS 환경변수)
-- Lifespan: APScheduler 시작/종료 (Story 3.3에서 구현)
-- 라우터: health (이번 스토리), 나머지는 후속 스토리에서 추가
+- Lifespan: APScheduler 시작/종료 (Story 3.3 구현 완료)
+- 라우터: health, sync, companies, financials, users, analysis_sets
 [Source: architecture.md - Infrastructure & Deployment]
 """
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import health, sync
+from app.api.v1 import analysis_sets, companies, financials, health, shared, sync, users
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     애플리케이션 생명주기 관리
-    - 시작 시: APScheduler 초기화 예정 (Story 3.3)
-    - 종료 시: 리소스 정리
+    - 시작 시: APScheduler 초기화 (Story 3.3)
+    - 종료 시: scheduler.shutdown()으로 정리
     """
-    # TODO: Story 3.3에서 APScheduler 시작 코드 추가
-    # from app.scheduler.tasks import start_scheduler
-    # scheduler = start_scheduler()
+    from app.scheduler.tasks import start_scheduler
+    scheduler = start_scheduler()
     yield
-    # TODO: Story 3.3에서 scheduler.shutdown() 추가
+    scheduler.shutdown(wait=False)
+    logger.info("[SCHEDULER] APScheduler 종료")
 
 
 app = FastAPI(
@@ -47,10 +50,8 @@ app.add_middleware(
 # 라우터 등록
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(sync.router, prefix="/api/v1")
-
-# TODO: 후속 스토리에서 라우터 추가
-# from app.api.v1 import companies, financials, analysis_sets, shared
-# app.include_router(companies.router, prefix="/api/v1")
-# app.include_router(financials.router, prefix="/api/v1")
-# app.include_router(analysis_sets.router, prefix="/api/v1")
-# app.include_router(shared.router, prefix="/api/v1")
+app.include_router(companies.router, prefix="/api/v1")
+app.include_router(financials.router, prefix="/api/v1")
+app.include_router(users.router, prefix="/api/v1")
+app.include_router(analysis_sets.router, prefix="/api/v1")
+app.include_router(shared.router, prefix="/api/v1")

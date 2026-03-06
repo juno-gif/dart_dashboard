@@ -1,8 +1,10 @@
 """
-DART OpenAPI 격리 모듈 — 완전 구현: Story 1.2
+DART OpenAPI 격리 모듈 — 완전 구현: Story 1.2, 1.6, 3.3
 ⚠️ DART API 호출은 이 파일에서만 허용. 다른 모듈에서 OpenDartReader 직접 import 금지
 [Source: architecture.md - DART API 격리 경계]
+Story 3.3: sync_all_companies() 추가 — APScheduler 07:00 KST 자동 호출
 """
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -10,6 +12,8 @@ import OpenDartReader
 
 from app.core.config import settings
 from app.core.database import get_supabase_client
+
+logger = logging.getLogger(__name__)
 
 _dart: Optional[OpenDartReader] = None
 
@@ -71,7 +75,10 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
         upsert_data = []
         for row in rows:
             account_nm: str = row.get("account_nm", "") or ""
-            account_key = mappings.get(account_nm, account_nm)
+            account_key = mappings.get(account_nm)
+            if account_key is None:
+                account_key = account_nm  # 원본명 그대로
+                logger.warning(f"Unmapped account: '{account_nm}' for {corp_code}/{bsns_year}")
 
             raw_amount = row.get("thstrm_amount", None)
             try:
@@ -99,3 +106,74 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
             synced_count += len(upsert_data)
 
     return {"corp_code": corp_code, "synced_rows": synced_count}
+
+
+# ── Story 3.3: 전체 기업 자동 갱신 ────────────────────────────────────────
+
+DART_RATE_LIMIT_THRESHOLD = 18_000  # 20,000건 한도 대비 조기 중단 임계값
+YEARS_PER_COMPANY = 5  # sync_company_financials 기본 years — API 호출 추정에 사용
+
+
+def sync_all_companies() -> dict:
+    """모든 등록 기업의 DART 데이터 자동 갱신. APScheduler가 매일 07:00 KST에 호출.
+
+    - 기업별 예외를 격리하여 일부 실패해도 전체 동기화 중단 방지
+    - DART 일일 API 호출 한도(20,000건) 초과 방지: 18,000건 추정치에서 조기 종료
+    - 신규 bsns_year 감지 시 companies.last_new_data_at 업데이트 (DB migration 선행 필요)
+    [Source: architecture.md - Infrastructure & Deployment > scheduler/tasks.py]
+    """
+    supabase = get_supabase_client()
+
+    try:
+        # Story 5.2: 비상장사(is_listed=False)는 DART 동기화 제외 — MAN_ 코드로 DART 호출 시 API 쿼터 낭비 방지
+        corp_res = supabase.table("companies").select("corp_code").eq("is_listed", True).execute()
+        corp_codes = [row["corp_code"] for row in (corp_res.data or [])]
+    except Exception as e:
+        logger.error(f"[DART_SYNC] 기업 목록 조회 실패: {e}")
+        return {"companies_synced": 0, "records_synced": 0}
+
+    total_synced = 0
+    records_synced = 0
+    api_call_count = 0
+
+    for corp_code in corp_codes:
+        if api_call_count >= DART_RATE_LIMIT_THRESHOLD:
+            logger.warning("[DART_SYNC] 한도 초과 방지: 조기 종료")
+            break
+
+        try:
+            # 동기화 전 기존 bsns_year 목록 조회 (신규 데이터 감지용)
+            before_res = (
+                supabase.table("financial_statements")
+                .select("bsns_year")
+                .eq("corp_code", corp_code)
+                .execute()
+            )
+            existing_years = {row["bsns_year"] for row in (before_res.data or [])}
+
+            # DART 동기화 (기존 데이터 UPSERT — 오류 시 원본 유지)
+            result = sync_company_financials(corp_code, years=YEARS_PER_COMPANY)
+            records_synced += result["synced_rows"]
+            api_call_count += YEARS_PER_COMPANY
+            total_synced += 1
+
+            # 동기화 후 bsns_year 재조회 → 신규 연도 감지
+            after_res = (
+                supabase.table("financial_statements")
+                .select("bsns_year")
+                .eq("corp_code", corp_code)
+                .execute()
+            )
+            new_years = {row["bsns_year"] for row in (after_res.data or [])} - existing_years
+
+            if new_years:
+                supabase.table("companies").update(
+                    {"last_new_data_at": datetime.utcnow().isoformat()}
+                ).eq("corp_code", corp_code).execute()
+
+        except Exception as e:
+            logger.error(f"[DART_SYNC] 실패: {corp_code} - {e}")
+            api_call_count += YEARS_PER_COMPANY  # 실패해도 호출 추정 카운트 누적
+
+    logger.info(f"[DART_SYNC] 완료: {total_synced}개 기업, {records_synced}개 레코드 갱신")
+    return {"companies_synced": total_synced, "records_synced": records_synced}

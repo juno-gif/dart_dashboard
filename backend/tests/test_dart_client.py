@@ -122,6 +122,132 @@ def test_sync_company_financials_returns_dict():
     assert "synced_rows" in result
 
 
+class TestSyncAllCompanies:
+    """Story 3.3: sync_all_companies() 테스트"""
+
+    def test_sync_all_companies_success(self, caplog):
+        """2개 기업 성공 동기화 + 완료 로그 검증"""
+        import logging
+        mock_sb = MagicMock()
+        # companies 테이블 조회 → 2개 기업
+        mock_sb.table.return_value.select.return_value.execute.return_value.data = [
+            {"corp_code": "000001"},
+            {"corp_code": "000002"},
+        ]
+        # financial_statements bsns_year 조회 (before/after) — 신규 없음
+        mock_sb.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+
+        with patch("app.services.dart_client.get_supabase_client", return_value=mock_sb):
+            with patch("app.services.dart_client.sync_company_financials", return_value={"synced_rows": 10}):
+                with caplog.at_level(logging.INFO, logger="app.services.dart_client"):
+                    from app.services.dart_client import sync_all_companies
+                    result = sync_all_companies()
+
+        assert result["companies_synced"] == 2
+        assert result["records_synced"] == 20
+        assert "[DART_SYNC] 완료: 2개 기업, 20개 레코드 갱신" in caplog.text
+
+    def test_sync_all_companies_partial_failure(self, caplog):
+        """1개 기업 실패해도 나머지 계속 진행 + 에러 로그 검증"""
+        import logging
+        mock_sb = MagicMock()
+        mock_sb.table.return_value.select.return_value.execute.return_value.data = [
+            {"corp_code": "000001"},
+            {"corp_code": "000002"},
+        ]
+        mock_sb.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+
+        def mock_sync(corp_code, years=5):
+            if corp_code == "000001":
+                raise Exception("DART API timeout")
+            return {"synced_rows": 5}
+
+        with patch("app.services.dart_client.get_supabase_client", return_value=mock_sb):
+            with patch("app.services.dart_client.sync_company_financials", side_effect=mock_sync):
+                with caplog.at_level(logging.ERROR, logger="app.services.dart_client"):
+                    from app.services.dart_client import sync_all_companies
+                    result = sync_all_companies()
+
+        assert result["companies_synced"] == 1  # 성공한 기업만 카운트
+        assert "[DART_SYNC] 실패: 000001" in caplog.text
+
+    def test_sync_all_companies_rate_limit(self, caplog):
+        """18,000건 초과 시 조기 종료 + 경고 로그"""
+        import logging
+        mock_sb = MagicMock()
+        # 4,000개 기업 (5 calls × 3,601번째 = 18,005 → 3,601번째에서 멈춤)
+        mock_sb.table.return_value.select.return_value.execute.return_value.data = [
+            {"corp_code": f"{i:06d}"} for i in range(4000)
+        ]
+        mock_sb.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+
+        with patch("app.services.dart_client.get_supabase_client", return_value=mock_sb):
+            with patch("app.services.dart_client.sync_company_financials", return_value={"synced_rows": 1}):
+                with caplog.at_level(logging.WARNING, logger="app.services.dart_client"):
+                    from app.services.dart_client import sync_all_companies
+                    result = sync_all_companies()
+
+        assert "[DART_SYNC] 한도 초과 방지: 조기 종료" in caplog.text
+        # 4,000개 전부 처리되지 않아야 함 (18,000 / 5 = 3,600개까지만)
+        assert result["companies_synced"] <= 3600
+
+    def test_sync_all_companies_new_data_detected(self):
+        """신규 bsns_year 감지 시 companies.last_new_data_at 업데이트"""
+        mock_sb = MagicMock()
+        mock_sb.table.return_value.select.return_value.execute.return_value.data = [
+            {"corp_code": "005930"},
+        ]
+
+        # before: 2022, 2023만 있음
+        before_result = MagicMock(data=[{"bsns_year": "2022"}, {"bsns_year": "2023"}])
+        # after: 2024 추가
+        after_result = MagicMock(data=[{"bsns_year": "2022"}, {"bsns_year": "2023"}, {"bsns_year": "2024"}])
+
+        mock_sb.table.return_value.select.return_value.eq.return_value.execute.side_effect = [
+            before_result,
+            after_result,
+        ]
+
+        with patch("app.services.dart_client.get_supabase_client", return_value=mock_sb):
+            with patch("app.services.dart_client.sync_company_financials", return_value={"synced_rows": 3}):
+                from app.services.dart_client import sync_all_companies
+                sync_all_companies()
+
+        # last_new_data_at 업데이트 호출 확인
+        mock_sb.table.return_value.update.assert_called_once()
+        update_call_args = mock_sb.table.return_value.update.call_args[0][0]
+        assert "last_new_data_at" in update_call_args
+
+    def test_sync_all_companies_no_companies(self, caplog):
+        """companies 테이블 비어있으면 완료: 0개 기업 로그"""
+        import logging
+        mock_sb = MagicMock()
+        mock_sb.table.return_value.select.return_value.execute.return_value.data = []
+
+        with patch("app.services.dart_client.get_supabase_client", return_value=mock_sb):
+            with caplog.at_level(logging.INFO, logger="app.services.dart_client"):
+                from app.services.dart_client import sync_all_companies
+                result = sync_all_companies()
+
+        assert result["companies_synced"] == 0
+        assert result["records_synced"] == 0
+        assert "[DART_SYNC] 완료: 0개 기업, 0개 레코드 갱신" in caplog.text
+
+    def test_sync_all_companies_db_error_on_list(self, caplog):
+        """기업 목록 조회 DB 오류 시 즉시 종료"""
+        import logging
+        mock_sb = MagicMock()
+        mock_sb.table.return_value.select.return_value.execute.side_effect = Exception("DB connection error")
+
+        with patch("app.services.dart_client.get_supabase_client", return_value=mock_sb):
+            with caplog.at_level(logging.ERROR, logger="app.services.dart_client"):
+                from app.services.dart_client import sync_all_companies
+                result = sync_all_companies()
+
+        assert result == {"companies_synced": 0, "records_synced": 0}
+        assert "[DART_SYNC] 기업 목록 조회 실패" in caplog.text
+
+
 def test_dart_client_is_only_importer():
     """OpenDartReader가 dart_client.py에서만 import되는지 확인 (다른 모듈에 없는지)"""
     import ast

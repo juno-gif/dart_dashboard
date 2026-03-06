@@ -3,9 +3,9 @@ Pydantic 요청/응답 스키마
 점진적으로 각 스토리에서 확장됩니다
 [Source: architecture.md - API & Communication Patterns]
 """
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 
 
 # ── 표준 에러 응답 ──────────────────────────────────────
@@ -44,3 +44,83 @@ class AccountMapping(BaseModel):
 class SyncResult(BaseModel):
     corp_code: str
     synced_rows: int
+
+
+# ── Story 2.2: 사용자 프로필 ────────────────────────────
+UserRoleType = Literal["admin", "builder", "live_viewer", "read_only"]
+
+
+class UserProfile(BaseModel):
+    id: str
+    role: UserRoleType
+    display_name: Optional[str] = None
+
+
+# ── Story 2.3: 팀원 초대 및 역할 관리 ───────────────────
+# admin은 초대 불가 (admin은 수동 DB 설정)
+InviteRoleType = Literal["builder", "live_viewer", "read_only"]
+
+
+class InviteUserRequest(BaseModel):
+    email: EmailStr
+    role: InviteRoleType
+
+
+class UpdateRoleRequest(BaseModel):
+    role: UserRoleType
+
+
+# ── Story 3.1: 분석 세트 저장 및 불러오기 ───────────────
+class AnalysisSetCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    company_codes: list[str] = Field(..., min_length=1)
+
+
+# ── Story 3.2: 분석 세트 수정 ───────────────────────────
+class AnalysisSetUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    company_codes: Optional[list[str]] = Field(None, min_length=1)
+
+
+class AnalysisSet(BaseModel):
+    id: str
+    name: str
+    owner_id: str
+    company_codes: list[str]
+    share_token: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+# ── Story 4.1: 공유 링크 생성 ────────────────────────────
+class ShareResponse(BaseModel):
+    share_token: str
+    share_url: str
+
+
+# ── Story 4.2: 공유 링크 뷰어 ────────────────────────────
+class SharedAnalysisSetResponse(BaseModel):
+    id: str
+    name: str
+    company_codes: list[str]
+    financials: list[FinancialStatement]
+
+
+# ── Story 5.1: 비상장사 수기 입력 ────────────────────────
+class ManualFinancialEntry(BaseModel):
+    bsns_year: str = Field(..., pattern=r'^\d{4}$')
+    revenue: Optional[int] = None
+    operating_profit: Optional[int] = None
+    net_income: Optional[int] = None
+
+
+class ManualCompanyCreate(BaseModel):
+    company_name: str = Field(..., min_length=1, max_length=100)
+    financials: list[ManualFinancialEntry] = Field(..., min_length=1, max_length=5)
+
+
+# ── Story 5.2: 비상장사 재무 데이터 조회 응답 ─────────────
+class ManualCompanyFinancialsResponse(BaseModel):
+    corp_code: str
+    company_name: str
+    financials: list[ManualFinancialEntry]
