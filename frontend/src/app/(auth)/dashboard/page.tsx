@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CompanySearchInput } from '@/components/search/CompanySearchInput'
 import { FinancialChart } from '@/components/charts/FinancialChart'
@@ -27,13 +27,24 @@ export default function DashboardPage() {
   const [editingCorpCode, setEditingCorpCode] = useState<string | null>(null)
 
   // 서버 웨이크업 체크 (Render 무료 플랜은 슬립 후 첫 요청에 30~60초 소요)
+  // 같은 탭 세션 내 새로고침 시 헬스체크 스피너 재표시 방지
+  const [skipHealthCheck] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return sessionStorage.getItem('server_healthy') === '1'
+  })
+
   const { isSuccess: serverReady, isLoading: serverWaking } = useQuery({
     queryKey: ['health'],
     queryFn: checkHealth,
     retry: 10,
     retryDelay: 5000,
     staleTime: Infinity,
+    enabled: !skipHealthCheck,
   })
+
+  useEffect(() => {
+    if (serverReady) sessionStorage.setItem('server_healthy', '1')
+  }, [serverReady])
 
   const { analysisSets, isLoading: setsLoading, loadSet, deleteSet } = useAnalysisSets()
 
