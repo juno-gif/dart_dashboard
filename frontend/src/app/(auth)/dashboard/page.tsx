@@ -12,7 +12,7 @@ import { DartWarningBanner } from '@/components/layout/DartWarningBanner'
 import { SaveAnalysisSetDialog } from '@/components/layout/SaveAnalysisSetDialog'
 import { AnalysisSetPanel } from '@/components/layout/AnalysisSetItem'
 import { UpdateAnalysisSetDialog } from '@/components/layout/UpdateAnalysisSetDialog'
-import { getUserProfile, getNewDataStatus } from '@/lib/api'
+import { getNewDataStatus } from '@/lib/api'
 import type { AnalysisSetData } from '@/lib/api'
 import type { Company, FinancialType } from '@/types'
 import { ManualEntryDialog } from '@/components/search/ManualEntryDialog'
@@ -26,11 +26,6 @@ export default function DashboardPage() {
   const [editingCorpCode, setEditingCorpCode] = useState<string | null>(null)
 
   const { analysisSets, isLoading: setsLoading, loadSet, deleteSet } = useAnalysisSets()
-
-  const { data: userProfile } = useQuery({
-    queryKey: ['users', 'me'],
-    queryFn: getUserProfile,
-  })
 
   const companyCodes = selectedCompanies.map((c) => c.corp_code)
   const { data: newDataStatus } = useQuery({
@@ -46,14 +41,12 @@ export default function DashboardPage() {
   const isAtMax = selectedCompanies.length >= MAX_COMPANIES
   const primaryCompany = selectedCompanies[0] ?? null
 
-  // 단일 기업 훅 (비교 모드 아닐 때만 활성화)
   const { data: financials = [], isLoading: singleLoading, error: singleError } = useFinancialData(
     !isCompareMode ? (primaryCompany?.corp_code ?? null) : null,
     5,
     chartType
   )
 
-  // 비교 훅 (기업 2개 이상일 때만 활성화)
   const { data: compareData = [], isLoading: compareLoading, error: compareError } =
     useCompareFinancials(
       isCompareMode ? selectedCompanies.map((c) => c.corp_code) : []
@@ -77,7 +70,6 @@ export default function DashboardPage() {
     )
   }
 
-  // 분석 세트 불러오기: GET /api/v1/analysis-sets/{id} 호출 후 CompanyTag 복원
   const handleLoadAnalysisSet = async (setId: string) => {
     const data = await loadSet.mutateAsync(setId)
     const restored: Company[] = data.company_codes.slice(0, MAX_COMPANIES).map((code) => ({
@@ -115,8 +107,6 @@ export default function DashboardPage() {
           onLoad={handleLoadAnalysisSet}
           onEdit={handleEditAnalysisSet}
           onDelete={handleDeleteAnalysisSet}
-          currentUserId={userProfile?.id ?? null}
-          currentUserRole={userProfile?.role ?? null}
         />
       </div>
 
@@ -159,7 +149,7 @@ export default function DashboardPage() {
             {c.stock_code && (
               <span className="text-xs text-gray-500 ml-1">{c.stock_code}</span>
             )}
-            {!c.is_listed && userProfile?.role === 'admin' && (
+            {!c.is_listed && (
               <button
                 onClick={() => setEditingCorpCode(c.corp_code)}
                 className="ml-1 text-xs text-blue-500 hover:text-blue-700"
@@ -193,7 +183,6 @@ export default function DashboardPage() {
         />
       ) : primaryCompany ? (
         <>
-          {/* P&L / B/S / 현금흐름 탭 (단일 기업 모드) */}
           <div className="flex gap-2">
             {(['pl', 'bs', 'cf'] as FinancialType[]).map((t) => (
               <button
@@ -218,7 +207,7 @@ export default function DashboardPage() {
         </p>
       )}
 
-      {/* Admin 비상장사 재무 데이터 편집 다이얼로그 */}
+      {/* 비상장사 재무 데이터 편집 다이얼로그 */}
       <ManualEntryDialog
         open={!!editingCorpCode}
         onOpenChange={(o) => { if (!o) setEditingCorpCode(null) }}
