@@ -5,10 +5,13 @@ DART OpenAPI 격리 모듈 — 완전 구현: Story 1.2, 1.6, 3.3
 Story 3.3: sync_all_companies() 추가 — APScheduler 07:00 KST 자동 호출
 """
 import logging
+import re
 from datetime import datetime
 from typing import Optional
 
+import requests
 import OpenDartReader
+from bs4 import BeautifulSoup
 
 from app.core.config import settings
 from app.core.database import get_supabase_client
@@ -26,12 +29,21 @@ def _get_dart() -> OpenDartReader:
 
 
 def search_companies(keyword: str) -> list[dict]:
-    """기업명으로 DART 기업 검색 (최대 8건)"""
+    """기업명으로 DART 기업 검색 (최대 8건)
+    정렬 우선순위: 정확한 이름 일치 → 상장사(stock_code 있음) → 나머지
+    """
     dart = _get_dart()
     df = dart.corp_codes
     if df is None or df.empty:
         return []
-    filtered = df[df["corp_name"].str.contains(keyword, na=False)]
+    filtered = df[df["corp_name"].str.contains(keyword, na=False)].copy()
+    if filtered.empty:
+        return []
+    filtered["_exact"] = (filtered["corp_name"] == keyword).astype(int)
+    filtered["_listed"] = (
+        filtered["stock_code"].notna() & (filtered["stock_code"].astype(str).str.strip() != "")
+    ).astype(int)
+    filtered = filtered.sort_values(["_exact", "_listed"], ascending=[False, False])
     return filtered.head(8)[["corp_code", "corp_name", "stock_code"]].to_dict("records")
 
 
@@ -54,10 +66,167 @@ def get_financial_statements(
     return df.to_dict("records")
 
 
+# ── 감사보고서 파싱 ──────────────────────────────────────────────────────────
+
+_REPRT_CODES = ["11011", "11012", "11013", "11014"]  # 사업보고서 → 반기 → 분기 순서
+
+
+def _parse_amount(text: str) -> Optional[int]:
+    """금액 문자열을 정수로 변환. 괄호는 음수 처리."""
+    text = text.strip().replace(",", "").replace(" ", "")
+    if not text or text in ("-", "―", ""):
+        return None
+    negative = text.startswith("(") and text.endswith(")")
+    text = text.replace("(", "").replace(")", "")
+    try:
+        val = int(text)
+        return -val if negative else val
+    except ValueError:
+        return None
+
+
+def _detect_unit_multiplier(soup: BeautifulSoup) -> int:
+    """HTML에서 금액 단위(원/천원/백만원) 감지 후 배수 반환"""
+    text = soup.get_text()
+    if "단위 : 백만원" in text or "단위: 백만원" in text or "(단위 : 백만원)" in text:
+        return 1_000_000
+    if "단위 : 천원" in text or "단위: 천원" in text or "(단위 : 천원)" in text:
+        return 1_000
+    return 1  # 기본값: 원
+
+
+def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dict]:
+    """감사보고서(F001) HTML에서 재무제표 계정과목·금액 추출.
+    사업보고서/분기보고서 없는 기업 전용 폴백.
+    """
+    dart = _get_dart()
+
+    # 감사보고서는 사업연도 다음 해 초(1~9월)에 제출
+    next_year = str(int(bsns_year) + 1)
+    start_dt = f"{next_year}0101"
+    end_dt = f"{next_year}0930"
+
+    try:
+        filings = dart.list(
+            corp_code,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            pblntf_ty="F",
+            pblntf_detail_ty="F001",
+        )
+    except Exception as e:
+        logger.warning(f"[DART] 감사보고서 목록 조회 실패 corp={corp_code} year={bsns_year}: {e}")
+        return []
+
+    if filings is None or (hasattr(filings, "empty") and filings.empty):
+        logger.warning(f"[DART] 감사보고서 없음 corp={corp_code} year={bsns_year}")
+        return []
+
+    rcp_no = filings.iloc[0]["rcp_no"] if hasattr(filings, "iloc") else filings[0]["rcp_no"]
+    logger.info(f"[DART] 감사보고서 발견 corp={corp_code} year={bsns_year} rcp={rcp_no}")
+
+    try:
+        sub_docs = dart.sub_docs(rcp_no)
+    except Exception as e:
+        logger.warning(f"[DART] 감사보고서 서브문서 조회 실패 rcp={rcp_no}: {e}")
+        return []
+
+    if sub_docs is None or (hasattr(sub_docs, "empty") and sub_docs.empty):
+        return []
+
+    # 재무제표 관련 문서 URL 우선순위: 재무제표 > 손익계산서 > 재무상태표
+    target_url = None
+    priority_keywords = ["재무제표", "손익계산서", "재무상태표", "포괄손익"]
+    if hasattr(sub_docs, "iterrows"):
+        for _, doc in sub_docs.iterrows():
+            title = str(doc.get("title", ""))
+            if any(kw in title for kw in priority_keywords):
+                target_url = doc.get("url")
+                break
+
+    if not target_url:
+        logger.warning(f"[DART] 감사보고서 재무제표 문서 없음 rcp={rcp_no}")
+        return []
+
+    try:
+        resp = requests.get(target_url, timeout=15)
+        resp.encoding = resp.apparent_encoding or "utf-8"
+        soup = BeautifulSoup(resp.text, "lxml")
+    except Exception as e:
+        logger.warning(f"[DART] 감사보고서 HTML 다운로드 실패 url={target_url}: {e}")
+        return []
+
+    multiplier = _detect_unit_multiplier(soup)
+    results = []
+
+    for table in soup.find_all("table"):
+        for tr in table.find_all("tr"):
+            cells = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
+            if len(cells) < 2:
+                continue
+
+            account_nm = cells[0]
+            if not account_nm or account_nm in ("과목", "계정과목", "구분"):
+                continue
+
+            # 당기 금액: 첫 번째 숫자 컬럼 (보통 두 번째 셀)
+            amount = None
+            for cell in cells[1:3]:
+                amount = _parse_amount(cell)
+                if amount is not None:
+                    break
+
+            if amount is None:
+                continue
+
+            results.append(
+                {
+                    "account_nm": account_nm,
+                    "thstrm_amount": str(amount * multiplier),
+                    "reprt_code": "F001",
+                    "fs_div": "OFS",
+                }
+            )
+
+    logger.info(
+        f"[DART] 감사보고서 파싱 완료 corp={corp_code} year={bsns_year} rows={len(results)}"
+    )
+    return results
+
+
+# ── 기본 계정 매핑 ────────────────────────────────────────────────────────────
+
+_BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
+    "매출액": "revenue",
+    "수익(매출액)": "revenue",
+    "영업수익": "revenue",
+    "매출": "revenue",
+    "영업이익": "operating_profit",
+    "영업이익(손실)": "operating_profit",
+    "당기순이익": "net_income",
+    "당기순이익(손실)": "net_income",
+    "분기순이익": "net_income",
+    "분기순이익(손실)": "net_income",
+    "반기순이익": "net_income",
+    "반기순이익(손실)": "net_income",
+    "자산총계": "total_assets",
+    "부채총계": "total_liabilities",
+    "자본총계": "total_equity",
+    "현금및현금성자산": "cash_and_equivalents",
+    "현금및현금성자산(기말)": "cash_and_equivalents",
+    "영업활동으로인한현금흐름": "operating_cf",
+    "영업활동현금흐름": "operating_cf",
+    "투자활동으로인한현금흐름": "investing_cf",
+    "투자활동현금흐름": "investing_cf",
+    "재무활동으로인한현금흐름": "financing_cf",
+    "재무활동현금흐름": "financing_cf",
+}
+
+
 def sync_company_financials(corp_code: str, years: int = 5) -> dict:
     """기업 재무 데이터를 DART에서 수집해 DB에 UPSERT
-    - DB-First: 이미 있는 데이터는 덮어쓰지 않음 (UPSERT on_conflict 무시)
-    - DART API Key와 Service Key는 이 함수 외부로 절대 노출 금지
+    - reprt_code 폴백: 11011 → 11012 → 11013 → 11014 → 감사보고서(F001)
+    - DB-First: UPSERT on_conflict 무시
     """
     supabase = get_supabase_client()
     current_year = datetime.now().year - 1  # 직전 사업연도 기준
@@ -70,7 +239,18 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
 
     for year_offset in range(years):
         bsns_year = str(current_year - year_offset)
-        rows = get_financial_statements(corp_code, bsns_year)
+
+        # Step 1: 사업보고서/반기/분기 순서로 시도
+        rows: list[dict] = []
+        for reprt_code in _REPRT_CODES:
+            rows = get_financial_statements(corp_code, bsns_year, reprt_code)
+            if rows:
+                break
+
+        # Step 2: 모두 실패하면 감사보고서 HTML 파싱 시도
+        if not rows:
+            rows = _get_financial_from_audit_report(corp_code, bsns_year)
+
         if not rows:
             continue
 
@@ -114,33 +294,6 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
 
 DART_RATE_LIMIT_THRESHOLD = 18_000  # 20,000건 한도 대비 조기 중단 임계값
 YEARS_PER_COMPANY = 5  # sync_company_financials 기본 years — API 호출 추정에 사용
-
-# 기본 계정 매핑 (account_mappings 테이블이 비어 있을 때 폴백)
-_BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
-    "매출액": "revenue",
-    "수익(매출액)": "revenue",
-    "영업수익": "revenue",
-    "매출": "revenue",
-    "영업이익": "operating_profit",
-    "영업이익(손실)": "operating_profit",
-    "당기순이익": "net_income",
-    "당기순이익(손실)": "net_income",
-    "분기순이익": "net_income",
-    "분기순이익(손실)": "net_income",
-    "반기순이익": "net_income",
-    "반기순이익(손실)": "net_income",
-    "자산총계": "total_assets",
-    "부채총계": "total_liabilities",
-    "자본총계": "total_equity",
-    "현금및현금성자산": "cash_and_equivalents",
-    "현금및현금성자산(기말)": "cash_and_equivalents",
-    "영업활동으로인한현금흐름": "operating_cf",
-    "영업활동현금흐름": "operating_cf",
-    "투자활동으로인한현금흐름": "investing_cf",
-    "투자활동현금흐름": "investing_cf",
-    "재무활동으로인한현금흐름": "financing_cf",
-    "재무활동현금흐름": "financing_cf",
-}
 
 
 def sync_all_companies() -> dict:

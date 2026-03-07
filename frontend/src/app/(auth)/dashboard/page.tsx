@@ -16,6 +16,7 @@ import { checkHealth, getNewDataStatus } from '@/lib/api'
 import type { AnalysisSetData } from '@/lib/api'
 import type { Company, FinancialType } from '@/types'
 import { ManualEntryDialog } from '@/components/search/ManualEntryDialog'
+import { FinancialTable } from '@/components/charts/FinancialTable'
 
 const MAX_COMPANIES = 5
 
@@ -195,11 +196,14 @@ export default function DashboardPage() {
 
       {/* 뷰 전환: 비교 / 단일 / 빈 상태 */}
       {isCompareMode ? (
-        <CompareChart
-          data={compareData}
-          companies={selectedCompanies}
-          isLoading={compareLoading}
-        />
+        <>
+          <CompareChart
+            data={compareData}
+            companies={selectedCompanies}
+            isLoading={compareLoading}
+          />
+          <FinancialTable data={compareData} chartType="pl" companies={selectedCompanies} />
+        </>
       ) : primaryCompany ? (
         <>
           <div className="flex gap-2">
@@ -219,6 +223,7 @@ export default function DashboardPage() {
           </div>
           <KPICard data={financials} isLoading={singleLoading} />
           <FinancialChart data={financials} isLoading={singleLoading} companyName={primaryCompany.company_name} type={chartType} />
+          <FinancialTable data={financials} chartType={chartType} />
         </>
       ) : (
         <p className="text-gray-400 text-center text-sm mt-16">
