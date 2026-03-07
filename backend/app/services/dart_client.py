@@ -100,7 +100,7 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
     """감사보고서(F001) HTML에서 재무제표 계정과목·금액 추출.
     사업보고서/분기보고서 없는 기업 전용 폴백.
     """
-    logger.info(f"[DART] _get_financial_from_audit_report 진입 corp={corp_code} year={bsns_year}")
+    logger.warning(f"[DART] _get_financial_from_audit_report 진입 corp={corp_code} year={bsns_year}")
     dart = _get_dart()
 
     # 감사보고서는 사업연도 다음 해 초(1~9월)에 제출
@@ -131,7 +131,7 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
     except (KeyError, IndexError) as e:
         logger.warning(f"[DART] 감사보고서 접수번호 추출 실패 corp={corp_code}: {e}")
         return []
-    logger.info(f"[DART] 감사보고서 발견 corp={corp_code} year={bsns_year} rcp={rcp_no}")
+    logger.warning(f"[DART] 감사보고서 발견 corp={corp_code} year={bsns_year} rcp={rcp_no}")
 
     try:
         sub_docs = dart.sub_docs(rcp_no)
@@ -145,7 +145,7 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
     # sub_docs 전체 제목 디버그 로그
     if hasattr(sub_docs, "iterrows"):
         titles = [str(doc.get("title", "")) for _, doc in sub_docs.iterrows()]
-        logger.info(f"[DART] 감사보고서 sub_docs rcp={rcp_no} titles={titles}")
+        logger.warning(f"[DART] 감사보고서 sub_docs rcp={rcp_no} titles={titles}")
 
     # 재무제표 관련 문서 URL 우선순위: 재무제표 > 손익계산서 > 재무상태표
     target_url = None
@@ -155,7 +155,7 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
             title = str(doc.get("title", ""))
             if any(kw in title for kw in priority_keywords):
                 target_url = doc.get("url")
-                logger.info(f"[DART] 감사보고서 재무제표 문서 선택 title={title!r} url={target_url}")
+                logger.warning(f"[DART] 감사보고서 재무제표 문서 선택 title={title!r} url={target_url}")
                 break
 
     # 키워드 매칭 실패 시 첫 번째 문서 시도
@@ -164,7 +164,7 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
             url = doc.get("url")
             if url:
                 target_url = url
-                logger.info(f"[DART] 감사보고서 첫번째 문서 폴백 title={doc.get('title', '')!r} url={target_url}")
+                logger.warning(f"[DART] 감사보고서 첫번째 문서 폴백 title={doc.get('title', '')!r} url={target_url}")
                 break
 
     if not target_url:
@@ -211,7 +211,7 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
                 }
             )
 
-    logger.info(
+    logger.warning(
         f"[DART] 감사보고서 파싱 완료 corp={corp_code} year={bsns_year} rows={len(results)}"
     )
     return results
@@ -272,7 +272,7 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
 
         # Step 2: 모두 실패하면 감사보고서 HTML 파싱 시도
         if not rows:
-            logger.info(f"[DART] 감사보고서 폴백 시작 corp={corp_code} year={bsns_year}")
+            logger.warning(f"[DART] 감사보고서 폴백 시작 corp={corp_code} year={bsns_year}")
             try:
                 rows = _get_financial_from_audit_report(corp_code, bsns_year)
             except Exception as e:

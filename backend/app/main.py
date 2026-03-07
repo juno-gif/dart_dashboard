@@ -8,6 +8,8 @@ FastAPI 애플리케이션 진입점
 import logging
 from contextlib import asynccontextmanager
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(name)s: %(message)s")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
