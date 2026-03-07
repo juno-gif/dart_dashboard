@@ -141,14 +141,29 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
     if sub_docs is None or (hasattr(sub_docs, "empty") and sub_docs.empty):
         return []
 
+    # sub_docs 전체 제목 디버그 로그
+    if hasattr(sub_docs, "iterrows"):
+        titles = [str(doc.get("title", "")) for _, doc in sub_docs.iterrows()]
+        logger.info(f"[DART] 감사보고서 sub_docs rcp={rcp_no} titles={titles}")
+
     # 재무제표 관련 문서 URL 우선순위: 재무제표 > 손익계산서 > 재무상태표
     target_url = None
-    priority_keywords = ["재무제표", "손익계산서", "재무상태표", "포괄손익"]
+    priority_keywords = ["재무제표", "손익계산서", "재무상태표", "포괄손익", "F.S", "financial", "statement"]
     if hasattr(sub_docs, "iterrows"):
         for _, doc in sub_docs.iterrows():
             title = str(doc.get("title", ""))
             if any(kw in title for kw in priority_keywords):
                 target_url = doc.get("url")
+                logger.info(f"[DART] 감사보고서 재무제표 문서 선택 title={title!r} url={target_url}")
+                break
+
+    # 키워드 매칭 실패 시 첫 번째 문서 시도
+    if not target_url and hasattr(sub_docs, "iterrows"):
+        for _, doc in sub_docs.iterrows():
+            url = doc.get("url")
+            if url:
+                target_url = url
+                logger.info(f"[DART] 감사보고서 첫번째 문서 폴백 title={doc.get('title', '')!r} url={target_url}")
                 break
 
     if not target_url:
