@@ -44,10 +44,13 @@ def get_financial_statements(
     dart = _get_dart()
     try:
         df = dart.finstate(corp_code, bsns_year, reprt_code)
-    except Exception:
+    except Exception as e:
+        logger.error(f"[DART] finstate 실패 corp={corp_code} year={bsns_year}: {e}")
         return []
     if df is None or df.empty:
+        logger.warning(f"[DART] finstate 빈 결과 corp={corp_code} year={bsns_year}")
         return []
+    logger.info(f"[DART] finstate 성공 corp={corp_code} year={bsns_year} rows={len(df)}")
     return df.to_dict("records")
 
 
