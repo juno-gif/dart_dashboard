@@ -59,7 +59,8 @@ def get_financial_statements(
     except Exception as e:
         logger.error(f"[DART] finstate 실패 corp={corp_code} year={bsns_year}: {e}")
         return []
-    if df is None or df.empty:
+    # OpenDartReader가 dict(상태코드) 또는 None을 반환하는 경우 방어
+    if df is None or isinstance(df, dict) or not hasattr(df, "empty") or df.empty:
         logger.warning(f"[DART] finstate 빈 결과 corp={corp_code} year={bsns_year}")
         return []
     logger.info(f"[DART] finstate 성공 corp={corp_code} year={bsns_year} rows={len(df)}")
@@ -109,10 +110,10 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
     try:
         filings = dart.list(
             corp_code,
-            start_dt=start_dt,
-            end_dt=end_dt,
-            pblntf_ty="F",
-            pblntf_detail_ty="F001",
+            start=start_dt,
+            end=end_dt,
+            kind="F",
+            kind_detail="F001",
         )
     except Exception as e:
         logger.warning(f"[DART] 감사보고서 목록 조회 실패 corp={corp_code} year={bsns_year}: {e}")
