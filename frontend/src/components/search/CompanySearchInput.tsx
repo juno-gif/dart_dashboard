@@ -37,58 +37,65 @@ export function CompanySearchInput({ onSelect, disabled }: Props) {
     onSelect(company)
   }
 
+  const showList = !disabled && query.length >= 1
+
   return (
     <>
-      <Command
-        shouldFilter={false}
-        role="combobox"
-        aria-autocomplete="list"
-        aria-expanded={!disabled && results.length > 0}
-      >
-        <CommandInput
-          placeholder="기업명 입력 (예: 삼성전자, SK하이닉스)"
-          value={query}
-          onValueChange={disabled ? undefined : setQuery}
-          disabled={disabled}
-          className={disabled ? 'cursor-not-allowed opacity-50' : ''}
-        />
-        {!disabled && <CommandList>
-          {isLoading && query.length >= 1 && (
-            <div className="py-2 px-3 text-sm text-gray-500">검색 중...</div>
-          )}
-          {!isLoading && query.length >= 1 && (
-            <CommandEmpty>
-              <div>&apos;{query}&apos;에 대한 결과 없음</div>
-              <div className="text-xs text-gray-400 mt-1">종목코드로 검색해보세요</div>
-              <div className="mt-3 text-xs text-gray-500 px-1">
-                DART에 등록되지 않은 기업입니다. 수기로 재무 데이터를 입력하시겠습니까?
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={() => setManualDialogOpen(true)}
-              >
-                수기 입력으로 추가
-              </Button>
-            </CommandEmpty>
-          )}
-          {results.map((company) => (
-            <CommandItem
-              key={company.corp_code}
-              onSelect={() => handleSelect(company)}
-            >
-              <span>{company.company_name}</span>
-              {company.stock_code && (
-                <span className="ml-2 text-xs text-gray-400">{company.stock_code}</span>
+      <div className="relative">
+        <Command
+          shouldFilter={false}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={showList}
+          className="overflow-visible"
+        >
+          <CommandInput
+            placeholder="기업명 입력 (예: 삼성전자, SK하이닉스)"
+            value={query}
+            onValueChange={disabled ? undefined : setQuery}
+            disabled={disabled}
+            className={disabled ? 'cursor-not-allowed opacity-50' : ''}
+          />
+          {showList && (
+            <CommandList className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border bg-popover shadow-md">
+              {isLoading && (
+                <div className="py-2 px-3 text-sm text-gray-500">검색 중...</div>
               )}
-              {!company.is_listed && (
-                <span className="ml-2 text-xs text-muted-foreground">(비상장)</span>
+              {!isLoading && (
+                <CommandEmpty>
+                  <div>&apos;{query}&apos;에 대한 결과 없음</div>
+                  <div className="text-xs text-gray-400 mt-1">종목코드로 검색해보세요</div>
+                  <div className="mt-3 text-xs text-gray-500 px-1">
+                    DART에 등록되지 않은 기업입니다. 수기로 재무 데이터를 입력하시겠습니까?
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => setManualDialogOpen(true)}
+                  >
+                    수기 입력으로 추가
+                  </Button>
+                </CommandEmpty>
               )}
-            </CommandItem>
-          ))}
-        </CommandList>}
-      </Command>
+              {results.map((company) => (
+                <CommandItem
+                  key={company.corp_code}
+                  onSelect={() => handleSelect(company)}
+                >
+                  <span>{company.company_name}</span>
+                  {company.stock_code && (
+                    <span className="ml-2 text-xs text-gray-400">{company.stock_code}</span>
+                  )}
+                  {!company.is_listed && (
+                    <span className="ml-2 text-xs text-muted-foreground">(비상장)</span>
+                  )}
+                </CommandItem>
+              ))}
+            </CommandList>
+          )}
+        </Command>
+      </div>
 
       <ManualEntryDialog
         open={manualDialogOpen}
