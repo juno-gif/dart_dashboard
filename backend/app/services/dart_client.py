@@ -100,6 +100,7 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
     """감사보고서(F001) HTML에서 재무제표 계정과목·금액 추출.
     사업보고서/분기보고서 없는 기업 전용 폴백.
     """
+    logger.info(f"[DART] _get_financial_from_audit_report 진입 corp={corp_code} year={bsns_year}")
     dart = _get_dart()
 
     # 감사보고서는 사업연도 다음 해 초(1~9월)에 제출
@@ -271,7 +272,12 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
 
         # Step 2: 모두 실패하면 감사보고서 HTML 파싱 시도
         if not rows:
-            rows = _get_financial_from_audit_report(corp_code, bsns_year)
+            logger.info(f"[DART] 감사보고서 폴백 시작 corp={corp_code} year={bsns_year}")
+            try:
+                rows = _get_financial_from_audit_report(corp_code, bsns_year)
+            except Exception as e:
+                logger.error(f"[DART] 감사보고서 폴백 예외 corp={corp_code} year={bsns_year}: {e}", exc_info=True)
+                rows = []
 
         if not rows:
             continue
