@@ -40,6 +40,7 @@ export function CompanySearchInput({ onSelect, disabled }: Props) {
   return (
     <>
       <Command
+        shouldFilter={false}
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={!disabled && results.length > 0}
