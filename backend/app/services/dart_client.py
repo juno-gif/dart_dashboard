@@ -60,11 +60,10 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
     current_year = datetime.now().year - 1  # 직전 사업연도 기준
     synced_count = 0
 
-    # account_mappings 전체 로드 (매 호출마다 재조회 방지)
+    # account_mappings 전체 로드 (DB 우선, 없으면 빌트인 폴백 사용)
     mappings_res = supabase.table("account_mappings").select("account_nm, account_key").execute()
-    mappings: dict[str, str] = {
-        row["account_nm"]: row["account_key"] for row in (mappings_res.data or [])
-    }
+    mappings: dict[str, str] = dict(_BUILTIN_ACCOUNT_MAPPINGS)
+    mappings.update({row["account_nm"]: row["account_key"] for row in (mappings_res.data or [])})
 
     for year_offset in range(years):
         bsns_year = str(current_year - year_offset)
@@ -112,6 +111,33 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
 
 DART_RATE_LIMIT_THRESHOLD = 18_000  # 20,000건 한도 대비 조기 중단 임계값
 YEARS_PER_COMPANY = 5  # sync_company_financials 기본 years — API 호출 추정에 사용
+
+# 기본 계정 매핑 (account_mappings 테이블이 비어 있을 때 폴백)
+_BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
+    "매출액": "revenue",
+    "수익(매출액)": "revenue",
+    "영업수익": "revenue",
+    "매출": "revenue",
+    "영업이익": "operating_profit",
+    "영업이익(손실)": "operating_profit",
+    "당기순이익": "net_income",
+    "당기순이익(손실)": "net_income",
+    "분기순이익": "net_income",
+    "분기순이익(손실)": "net_income",
+    "반기순이익": "net_income",
+    "반기순이익(손실)": "net_income",
+    "자산총계": "total_assets",
+    "부채총계": "total_liabilities",
+    "자본총계": "total_equity",
+    "현금및현금성자산": "cash_and_equivalents",
+    "현금및현금성자산(기말)": "cash_and_equivalents",
+    "영업활동으로인한현금흐름": "operating_cf",
+    "영업활동현금흐름": "operating_cf",
+    "투자활동으로인한현금흐름": "investing_cf",
+    "투자활동현금흐름": "investing_cf",
+    "재무활동으로인한현금흐름": "financing_cf",
+    "재무활동현금흐름": "financing_cf",
+}
 
 
 def sync_all_companies() -> dict:
