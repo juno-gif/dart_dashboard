@@ -19,7 +19,7 @@ router = APIRouter()
 # ── Story 1.5: 다중 기업 비교 ──────────────────────────────
 # ⚠️ /companies/compare 는 /companies/{corp_code}/... 보다 반드시 앞에 위치해야 함
 @router.get("/companies/compare", response_model=list[FinancialStatement])
-async def compare_financials(
+def compare_financials(
     codes: str,
     years: int = 5,
     chart_type: str = Query("pl", alias="type"),
@@ -69,7 +69,7 @@ async def compare_financials(
 
 # ── Story 1.4: 단일 기업 재무 조회 ────────────────────────
 @router.get("/companies/{corp_code}/financials", response_model=list[FinancialStatement])
-async def get_financials(
+def get_financials(
     corp_code: str,
     years: int = 5,
     chart_type: str = Query("pl", alias="type"),
