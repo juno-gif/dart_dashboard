@@ -62,25 +62,9 @@ async def search_companies(
     # H1: PostgREST OR 필터 인젝션 방어 — 콤마·괄호 제거 후 필터 적용
     q_safe = q.replace(",", "").replace("(", "").replace(")", "").strip()
 
-    # 1. DB에서 먼저 검색 (빠름, DART API 한도 절약)
-    res = (
-        supabase.table("companies")
-        .select("*")
-        .or_(f"company_name.ilike.%{q_safe}%,stock_code.eq.{q_safe}")
-        .limit(limit)
-        .execute()
-    )
-
-    if res.data:
-        return res.data
-
-    # 2. DB에 없으면 DART API 검색
+    # 1. DART API 검색 (항상 수행 — 정렬 신뢰도 높음)
     dart_results = dart_search_companies(q)
-    if not dart_results:
-        return []
-
-    # 3. DART 결과를 companies 테이블에 UPSERT
-    upsert_data = [
+    dart_data = [
         {
             "corp_code": r["corp_code"],
             "company_name": r["corp_name"],
@@ -89,13 +73,24 @@ async def search_companies(
         }
         for r in dart_results
     ]
-    # M1: upsert 실패를 조용히 무시 (캐시 미기록이지만 응답은 정상 반환)
-    try:
-        supabase.table("companies").upsert(upsert_data, on_conflict="corp_code").execute()
-    except Exception:
-        pass  # DB 캐시 실패는 비치명적 — 이미 DART 데이터로 응답 가능
 
-    return upsert_data[:limit]
+    if dart_data:
+        # DART 결과를 DB에 UPSERT (캐시 갱신)
+        try:
+            supabase.table("companies").upsert(dart_data, on_conflict="corp_code").execute()
+        except Exception:
+            pass
+        return dart_data[:limit]
+
+    # 2. DART 결과 없으면 DB 폴백 (종목코드 직접 검색 등 엣지케이스)
+    res = (
+        supabase.table("companies")
+        .select("*")
+        .or_(f"company_name.ilike.%{q_safe}%,stock_code.eq.{q_safe}")
+        .limit(limit)
+        .execute()
+    )
+    return res.data or []
 
 
 # ── Story 5.1: 비상장사 수기 입력 ──────────────────────────────
