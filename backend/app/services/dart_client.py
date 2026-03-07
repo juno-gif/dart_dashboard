@@ -123,7 +123,13 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
         logger.warning(f"[DART] 감사보고서 없음 corp={corp_code} year={bsns_year}")
         return []
 
-    rcp_no = filings.iloc[0]["rcp_no"] if hasattr(filings, "iloc") else filings[0]["rcp_no"]
+    try:
+        row = filings.iloc[0] if hasattr(filings, "iloc") else filings[0]
+        # DART API 반환 컬럼명: rcept_no (접수번호)
+        rcp_no = row.get("rcept_no") or row.get("rcp_no") if hasattr(row, "get") else row["rcept_no"]
+    except (KeyError, IndexError) as e:
+        logger.warning(f"[DART] 감사보고서 접수번호 추출 실패 corp={corp_code}: {e}")
+        return []
     logger.info(f"[DART] 감사보고서 발견 corp={corp_code} year={bsns_year} rcp={rcp_no}")
 
     try:

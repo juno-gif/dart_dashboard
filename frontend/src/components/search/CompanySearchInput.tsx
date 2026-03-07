@@ -46,7 +46,7 @@ export function CompanySearchInput({ onSelect, disabled }: Props) {
         aria-expanded={!disabled && results.length > 0}
       >
         <CommandInput
-          placeholder="기업명 입력 (예: 삼성전자, 카카오)"
+          placeholder="기업명 입력 (예: 삼성전자, SK하이닉스)"
           value={query}
           onValueChange={disabled ? undefined : setQuery}
           disabled={disabled}
