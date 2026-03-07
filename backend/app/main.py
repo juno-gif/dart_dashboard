@@ -38,11 +38,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS 설정 — Vercel 배포 도메인만 허용
+# CORS 설정 — 전체 공개 앱이므로 모든 origin 허용
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS.split(","),
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

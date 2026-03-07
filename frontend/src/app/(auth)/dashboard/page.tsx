@@ -12,7 +12,7 @@ import { DartWarningBanner } from '@/components/layout/DartWarningBanner'
 import { SaveAnalysisSetDialog } from '@/components/layout/SaveAnalysisSetDialog'
 import { AnalysisSetPanel } from '@/components/layout/AnalysisSetItem'
 import { UpdateAnalysisSetDialog } from '@/components/layout/UpdateAnalysisSetDialog'
-import { getNewDataStatus } from '@/lib/api'
+import { checkHealth, getNewDataStatus } from '@/lib/api'
 import type { AnalysisSetData } from '@/lib/api'
 import type { Company, FinancialType } from '@/types'
 import { ManualEntryDialog } from '@/components/search/ManualEntryDialog'
@@ -24,6 +24,15 @@ export default function DashboardPage() {
   const [editingSet, setEditingSet] = useState<AnalysisSetData | null>(null)
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
   const [editingCorpCode, setEditingCorpCode] = useState<string | null>(null)
+
+  // 서버 웨이크업 체크 (Render 무료 플랜은 슬립 후 첫 요청에 30~60초 소요)
+  const { isSuccess: serverReady, isLoading: serverWaking } = useQuery({
+    queryKey: ['health'],
+    queryFn: checkHealth,
+    retry: 10,
+    retryDelay: 5000,
+    staleTime: Infinity,
+  })
 
   const { analysisSets, isLoading: setsLoading, loadSet, deleteSet } = useAnalysisSets()
 
@@ -89,6 +98,16 @@ export default function DashboardPage() {
 
   const handleDeleteAnalysisSet = (setId: string) => {
     deleteSet.mutate(setId)
+  }
+
+  if (serverWaking && !serverReady) {
+    return (
+      <main className="p-6 max-w-5xl mx-auto flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm font-medium">서버를 준비하는 중입니다...</p>
+        <p className="text-xs text-muted-foreground">무료 플랜 서버는 첫 접속 시 최대 60초가 걸릴 수 있습니다.</p>
+      </main>
+    )
   }
 
   return (

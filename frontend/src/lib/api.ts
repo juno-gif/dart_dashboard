@@ -100,6 +100,12 @@ export async function apiPostBlob(path: string): Promise<Blob> {
   return res.blob()
 }
 
+// ── 서버 헬스체크 ───────────────────────────────────────
+export async function checkHealth(): Promise<boolean> {
+  const res = await fetch(`${API_URL}/api/v1/health`)
+  return res.ok
+}
+
 // ── 기업 검색 ──────────────────────────────────────────
 export async function searchCompanies(q: string): Promise<Company[]> {
   return apiGet<Company[]>(`/api/v1/companies/search?q=${encodeURIComponent(q)}&limit=8`)
