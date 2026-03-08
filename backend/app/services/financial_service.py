@@ -36,11 +36,11 @@ def _needs_sync(corp_code: str, rows: list, years: int) -> bool:
     return time.time() - last > _SYNC_COOLDOWN
 
 
-def get_pl_data(corp_code: str, years: int = 5) -> list:
+def get_pl_data(corp_code: str, years: int = 5, fs_div: str | None = None) -> list:
     """DB-First P&L 조회.
     DB에 데이터 없거나 연도 부족 시 DART sync 후 재조회.
     DART 장애 시: DB 캐시 있으면 반환, 없으면 예외 re-raise (→ 503).
-    CFS(연결) 우선, 없으면 OFS(개별) 사용.
+    fs_div=None → CFS 우선(기본), "CFS"/"OFS" → 해당 구분만, "ALL" → CFS+OFS 모두 반환.
     """
     supabase = get_supabase_client()
 
@@ -57,7 +57,7 @@ def get_pl_data(corp_code: str, years: int = 5) -> list:
                 # DB도 비어 있음 → 호출부에서 DART_API_UNAVAILABLE 처리
                 raise
 
-    return _prefer_cfs(rows, years)
+    return _apply_fs_div_filter(rows, years, fs_div)
 
 
 def _query_pl(supabase, corp_code: str, years: int) -> list:
@@ -73,11 +73,11 @@ def _query_pl(supabase, corp_code: str, years: int) -> list:
     return res.data or []
 
 
-def get_bs_data(corp_code: str, years: int = 5) -> list:
+def get_bs_data(corp_code: str, years: int = 5, fs_div: str | None = None) -> list:
     """DB-First B/S 조회.
     DB에 데이터 없거나 연도 부족 시 DART sync 후 재조회.
     DART 장애 시: DB 캐시 있으면 반환, 없으면 예외 re-raise (→ 503).
-    CFS(연결) 우선, 없으면 OFS(개별) 사용.
+    fs_div=None → CFS 우선(기본), "CFS"/"OFS" → 해당 구분만, "ALL" → CFS+OFS 모두 반환.
     """
     supabase = get_supabase_client()
 
@@ -93,7 +93,7 @@ def get_bs_data(corp_code: str, years: int = 5) -> list:
             if not rows:
                 raise
 
-    return _prefer_cfs(rows, years)
+    return _apply_fs_div_filter(rows, years, fs_div)
 
 
 def _query_bs(supabase, corp_code: str, years: int) -> list:
@@ -109,11 +109,11 @@ def _query_bs(supabase, corp_code: str, years: int) -> list:
     return res.data or []
 
 
-def get_cf_data(corp_code: str, years: int = 5) -> list:
+def get_cf_data(corp_code: str, years: int = 5, fs_div: str | None = None) -> list:
     """DB-First CF 조회.
     DB에 데이터 없거나 연도 부족 시 DART sync 후 재조회.
     DART 장애 시: DB 캐시 있으면 반환, 없으면 예외 re-raise (→ 503).
-    CFS(연결) 우선, 없으면 OFS(개별) 사용.
+    fs_div=None → CFS 우선(기본), "CFS"/"OFS" → 해당 구분만, "ALL" → CFS+OFS 모두 반환.
     """
     supabase = get_supabase_client()
 
@@ -129,7 +129,7 @@ def get_cf_data(corp_code: str, years: int = 5) -> list:
             if not rows:
                 raise
 
-    return _prefer_cfs(rows, years)
+    return _apply_fs_div_filter(rows, years, fs_div)
 
 
 def _query_cf(supabase, corp_code: str, years: int) -> list:
@@ -165,3 +165,30 @@ def _prefer_cfs(rows: list, years: int) -> list:
         if len(years_seen) <= years:
             filtered.append(row)
     return filtered
+
+
+def _select_recent_years_all(rows: list, years: int) -> list:
+    """최근 N개 연도의 모든 행(CFS+OFS) 반환 — 중복 제거 없음"""
+    sorted_rows = sorted(rows, key=lambda r: r["bsns_year"], reverse=True)
+    years_seen: set = set()
+    filtered = []
+    for row in sorted_rows:
+        years_seen.add(row["bsns_year"])
+        if len(years_seen) <= years:
+            filtered.append(row)
+    return filtered
+
+
+def _apply_fs_div_filter(rows: list, years: int, fs_div: str | None) -> list:
+    """fs_div 파라미터에 따라 필터링:
+    - None → CFS 우선 dedup (기본값, 비교 모드 호환)
+    - "ALL" → CFS+OFS 모두 반환
+    - "CFS" / "OFS" → 해당 구분만 반환
+    """
+    if fs_div == "ALL":
+        return _select_recent_years_all(rows, years)
+    elif fs_div in ("CFS", "OFS"):
+        filtered = [r for r in rows if r["fs_div"] == fs_div]
+        return _select_recent_years_all(filtered, years)
+    else:
+        return _prefer_cfs(rows, years)

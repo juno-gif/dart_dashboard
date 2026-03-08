@@ -81,11 +81,14 @@ export async function searchCompanies(q: string): Promise<Company[]> {
 // ── 재무 데이터 조회 ────────────────────────────────────
 export async function getFinancials(
   corpCode: string,
-  years = 5,
-  type = 'pl'
+  years = 10,
+  type = 'pl',
+  fsDivParam?: string
 ): Promise<FinancialStatement[]> {
+  const params = new URLSearchParams({ years: String(years), type })
+  if (fsDivParam) params.set('fs_div', fsDivParam)
   return apiGet<FinancialStatement[]>(
-    `/api/v1/companies/${corpCode}/financials?years=${years}&type=${type}`
+    `/api/v1/companies/${corpCode}/financials?${params}`
   )
 }
 

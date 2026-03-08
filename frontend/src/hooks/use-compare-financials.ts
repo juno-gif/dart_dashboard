@@ -5,7 +5,7 @@ import type { FinancialStatement } from '@/types'
 
 export function useCompareFinancials(
   codes: string[],
-  years = 5,
+  years = 10,
   type = 'pl'
 ) {
   const sortedCodesStr = [...codes].sort().join(',')

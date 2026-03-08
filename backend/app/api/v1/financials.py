@@ -71,14 +71,16 @@ def compare_financials(
 @router.get("/companies/{corp_code}/financials", response_model=list[FinancialStatement])
 def get_financials(
     corp_code: str,
-    years: int = 5,
+    years: int = 10,
     chart_type: str = Query("pl", alias="type"),
+    fs_div: str | None = Query(None),
     _: object = Depends(get_current_user),
 ):
     """기업 재무 데이터 조회 (DB-First)
     - chart_type=pl: 매출·영업이익·순이익
     - chart_type=bs: 자산·부채·자본·현금 (Story 3.4)
     - chart_type=cf: 영업·투자·재무 현금흐름 (Story 3.5)
+    - fs_div=None(기본) → CFS 우선, "CFS"/"OFS" → 해당 구분만, "ALL" → 전체
     """
     if chart_type not in ("pl", "bs", "cf"):
         raise HTTPException(
@@ -87,14 +89,16 @@ def get_financials(
         )
     if years < 1 or years > 10:
         raise HTTPException(status_code=400, detail="years는 1~10 사이여야 합니다.")
+    if fs_div is not None and fs_div not in ("CFS", "OFS", "ALL"):
+        raise HTTPException(status_code=400, detail="fs_div는 CFS, OFS, ALL만 지원됩니다.")
 
     try:
         if chart_type == "bs":
-            data = get_bs_data(corp_code, years=years)
+            data = get_bs_data(corp_code, years=years, fs_div=fs_div)
         elif chart_type == "cf":
-            data = get_cf_data(corp_code, years=years)
+            data = get_cf_data(corp_code, years=years, fs_div=fs_div)
         else:
-            data = get_pl_data(corp_code, years=years)
+            data = get_pl_data(corp_code, years=years, fs_div=fs_div)
     except Exception as e:
         logger.error(f"DART API unavailable for {corp_code}: {e}")
         raise HTTPException(

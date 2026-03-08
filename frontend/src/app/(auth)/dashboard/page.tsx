@@ -57,16 +57,31 @@ export default function DashboardPage() {
   const newDataCodes = new Set(newDataStatus?.new_data_codes ?? [])
 
   const [chartType, setChartType] = useState<FinancialType>('pl')
+  const [fsDivFilter, setFsDivFilter] = useState<'CFS' | 'OFS'>('CFS')
 
   const isCompareMode = selectedCompanies.length >= 2
   const isAtMax = selectedCompanies.length >= MAX_COMPANIES
   const primaryCompany = selectedCompanies[0] ?? null
 
-  const { data: financials = [], isLoading: singleLoading, error: singleError } = useFinancialData(
+  // 기업 변경 시 연결/별도 필터 초기화
+  useEffect(() => {
+    setFsDivFilter('CFS')
+  }, [primaryCompany?.corp_code])
+
+  // 단일 기업: CFS+OFS 전체 조회 후 클라이언트 필터링
+  const { data: allFinancials = [], isLoading: singleLoading, error: singleError } = useFinancialData(
     !isCompareMode ? (primaryCompany?.corp_code ?? null) : null,
-    5,
+    10,
     chartType
+    // fsDivParam 기본값 'ALL' — 훅에서 지정됨
   )
+
+  // 사용 가능한 fs_div 목록 도출
+  const availableFsDivs = new Set(allFinancials.map((d) => d.fs_div))
+  const showFsDivTabs = availableFsDivs.has('CFS') && availableFsDivs.has('OFS')
+  // CFS 없으면 OFS로 자동 전환
+  const activeFsDiv = availableFsDivs.has(fsDivFilter) ? fsDivFilter : (availableFsDivs.has('CFS') ? 'CFS' : 'OFS')
+  const financials = allFinancials.filter((d) => d.fs_div === activeFsDiv)
 
   const { data: compareData = [], isLoading: compareLoading, error: compareError } =
     useCompareFinancials(
@@ -235,20 +250,39 @@ export default function DashboardPage() {
         </>
       ) : primaryCompany ? (
         <>
-          <div className="flex gap-2">
-            {(['pl', 'bs', 'cf'] as FinancialType[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setChartType(t)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  chartType === t
-                    ? 'bg-primary text-primary-foreground'
-                    : 'border text-muted-foreground hover:bg-muted'
-                }`}
-              >
-                {t === 'pl' ? '손익계산서' : t === 'bs' ? '재무상태표' : '현금흐름'}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex gap-2">
+              {(['pl', 'bs', 'cf'] as FinancialType[]).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setChartType(t)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    chartType === t
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  {t === 'pl' ? '손익계산서' : t === 'bs' ? '재무상태표' : '현금흐름'}
+                </button>
+              ))}
+            </div>
+            {showFsDivTabs && (
+              <div className="flex gap-1">
+                {(['CFS', 'OFS'] as const).map((fsDiv) => (
+                  <button
+                    key={fsDiv}
+                    onClick={() => setFsDivFilter(fsDiv)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      activeFsDiv === fsDiv
+                        ? 'bg-secondary text-secondary-foreground'
+                        : 'border text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    {fsDiv === 'CFS' ? '연결' : '별도'}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <KPICard data={financials} isLoading={singleLoading} chartType={chartType} />
           <FinancialChart data={financials} isLoading={singleLoading} companyName={primaryCompany.company_name} type={chartType} />
