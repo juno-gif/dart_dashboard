@@ -152,7 +152,7 @@ def _call_llm(system_prompt: str, user_message: str, max_tokens: int) -> str:
     try:
         client = _get_client()
         message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-3-5-haiku-20241022",
             max_tokens=max_tokens,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
