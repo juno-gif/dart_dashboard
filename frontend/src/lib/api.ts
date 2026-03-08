@@ -8,16 +8,18 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
 
+// FastAPI는 에러를 { "detail": { "error": "...", "message": "..." } } 형태로 래핑
+// detail이 객체인 경우 언래핑해서 컴포넌트에서 바로 error/message 접근 가능하게 함
+async function parseApiError(res: Response): Promise<never> {
+  const fallback = { error: 'UNKNOWN_ERROR', message: 'Unknown error occurred', status_code: res.status }
+  const json = await res.json().catch(() => fallback)
+  const detail = json?.detail
+  throw (detail && typeof detail === 'object' && !Array.isArray(detail)) ? detail : json
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { headers: JSON_HEADERS })
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({
-      error: 'UNKNOWN_ERROR',
-      message: 'Unknown error occurred',
-      status_code: res.status,
-    }))
-    throw error
-  }
+  if (!res.ok) return parseApiError(res)
   return res.json()
 }
 
@@ -27,14 +29,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     headers: JSON_HEADERS,
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({
-      error: 'UNKNOWN_ERROR',
-      message: 'Unknown error occurred',
-      status_code: res.status,
-    }))
-    throw error
-  }
+  if (!res.ok) return parseApiError(res)
   return res.json()
 }
 
@@ -44,14 +39,7 @@ export async function apiPut<T>(path: string, body: unknown): Promise<T> {
     headers: JSON_HEADERS,
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({
-      error: 'UNKNOWN_ERROR',
-      message: 'Unknown error occurred',
-      status_code: res.status,
-    }))
-    throw error
-  }
+  if (!res.ok) return parseApiError(res)
   return res.json()
 }
 
@@ -61,14 +49,7 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
     headers: JSON_HEADERS,
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({
-      error: 'UNKNOWN_ERROR',
-      message: 'Unknown error occurred',
-      status_code: res.status,
-    }))
-    throw error
-  }
+  if (!res.ok) return parseApiError(res)
   return res.json()
 }
 
@@ -77,26 +58,12 @@ export async function apiDelete(path: string): Promise<void> {
     method: 'DELETE',
     headers: JSON_HEADERS,
   })
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({
-      error: 'UNKNOWN_ERROR',
-      message: 'Unknown error occurred',
-      status_code: res.status,
-    }))
-    throw error
-  }
+  if (!res.ok) return parseApiError(res)
 }
 
 export async function apiPostBlob(path: string): Promise<Blob> {
   const res = await fetch(`${API_URL}${path}`, { method: 'POST' })
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({
-      error: 'UNKNOWN_ERROR',
-      message: 'Unknown error occurred',
-      status_code: res.status,
-    }))
-    throw error
-  }
+  if (!res.ok) return parseApiError(res)
   return res.blob()
 }
 
