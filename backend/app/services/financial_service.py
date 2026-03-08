@@ -5,6 +5,7 @@ DART 장애 시 DB 캐시로 폴백, DB도 없으면 예외 re-raise
 [Source: architecture.md - DB-First Caching Strategy]
 """
 import logging
+import time
 
 from app.core.database import get_supabase_client
 from app.services.dart_client import sync_company_financials
@@ -15,10 +16,29 @@ PL_ACCOUNT_KEYS = ["revenue", "operating_profit", "net_income"]
 BS_ACCOUNT_KEYS = ["total_assets", "total_liabilities", "total_equity", "cash_and_equivalents"]
 CF_ACCOUNT_KEYS = ["operating_cf", "investing_cf", "financing_cf"]
 
+# 부분 sync 후 과도한 재호출 방지용 in-memory 쿨다운 (재시작 시 초기화됨)
+_last_sync: dict[str, float] = {}
+_SYNC_COOLDOWN = 3600  # 1시간 (초)
+
+
+def _needs_sync(corp_code: str, rows: list, years: int) -> bool:
+    """sync 필요 여부 판단:
+    - 데이터 없음 → 항상 sync
+    - 데이터 있지만 연도 부족 → 쿨다운 지난 경우에만 sync (무한 루프 방지)
+    """
+    if not rows:
+        return True
+    distinct_years = len({r["bsns_year"] for r in rows})
+    if distinct_years >= years:
+        return False
+    # 부분 데이터: 쿨다운(1시간) 경과 시에만 재시도
+    last = _last_sync.get(corp_code, 0)
+    return time.time() - last > _SYNC_COOLDOWN
+
 
 def get_pl_data(corp_code: str, years: int = 5) -> list:
     """DB-First P&L 조회.
-    DB에 데이터 없으면 DART sync 후 재조회.
+    DB에 데이터 없거나 연도 부족 시 DART sync 후 재조회.
     DART 장애 시: DB 캐시 있으면 반환, 없으면 예외 re-raise (→ 503).
     CFS(연결) 우선, 없으면 OFS(개별) 사용.
     """
@@ -26,14 +46,16 @@ def get_pl_data(corp_code: str, years: int = 5) -> list:
 
     rows = _query_pl(supabase, corp_code, years)
 
-    if not rows:
+    if _needs_sync(corp_code, rows, years):
         try:
+            _last_sync[corp_code] = time.time()
             sync_company_financials(corp_code, years=years)
             rows = _query_pl(supabase, corp_code, years)
         except Exception as e:
             logger.warning(f"DART sync failed for {corp_code}: {e}")
-            # DB도 비어 있음 → 호출부에서 DART_API_UNAVAILABLE 처리
-            raise
+            if not rows:
+                # DB도 비어 있음 → 호출부에서 DART_API_UNAVAILABLE 처리
+                raise
 
     return _prefer_cfs(rows, years)
 
@@ -53,7 +75,7 @@ def _query_pl(supabase, corp_code: str, years: int) -> list:
 
 def get_bs_data(corp_code: str, years: int = 5) -> list:
     """DB-First B/S 조회.
-    DB에 데이터 없으면 DART sync 후 재조회.
+    DB에 데이터 없거나 연도 부족 시 DART sync 후 재조회.
     DART 장애 시: DB 캐시 있으면 반환, 없으면 예외 re-raise (→ 503).
     CFS(연결) 우선, 없으면 OFS(개별) 사용.
     """
@@ -61,13 +83,15 @@ def get_bs_data(corp_code: str, years: int = 5) -> list:
 
     rows = _query_bs(supabase, corp_code, years)
 
-    if not rows:
+    if _needs_sync(corp_code, rows, years):
         try:
+            _last_sync[corp_code] = time.time()
             sync_company_financials(corp_code, years=years)
             rows = _query_bs(supabase, corp_code, years)
         except Exception as e:
             logger.warning(f"DART sync failed for {corp_code}: {e}")
-            raise
+            if not rows:
+                raise
 
     return _prefer_cfs(rows, years)
 
@@ -87,7 +111,7 @@ def _query_bs(supabase, corp_code: str, years: int) -> list:
 
 def get_cf_data(corp_code: str, years: int = 5) -> list:
     """DB-First CF 조회.
-    DB에 데이터 없으면 DART sync 후 재조회.
+    DB에 데이터 없거나 연도 부족 시 DART sync 후 재조회.
     DART 장애 시: DB 캐시 있으면 반환, 없으면 예외 re-raise (→ 503).
     CFS(연결) 우선, 없으면 OFS(개별) 사용.
     """
@@ -95,13 +119,15 @@ def get_cf_data(corp_code: str, years: int = 5) -> list:
 
     rows = _query_cf(supabase, corp_code, years)
 
-    if not rows:
+    if _needs_sync(corp_code, rows, years):
         try:
+            _last_sync[corp_code] = time.time()
             sync_company_financials(corp_code, years=years)
             rows = _query_cf(supabase, corp_code, years)
         except Exception as e:
             logger.warning(f"DART sync failed for {corp_code}: {e}")
-            raise
+            if not rows:
+                raise
 
     return _prefer_cfs(rows, years)
 
