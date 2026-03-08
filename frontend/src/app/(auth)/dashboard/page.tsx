@@ -232,7 +232,7 @@ export default function DashboardPage() {
               </button>
             ))}
           </div>
-          <KPICard data={financials} isLoading={singleLoading} />
+          <KPICard data={financials} isLoading={singleLoading} chartType={chartType} />
           <FinancialChart data={financials} isLoading={singleLoading} companyName={primaryCompany.company_name} type={chartType} />
           <FinancialTable data={financials} chartType={chartType} />
         </>
