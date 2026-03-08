@@ -245,6 +245,7 @@ _BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
 def sync_company_financials(corp_code: str, years: int = 5) -> dict:
     """기업 재무 데이터를 DART에서 수집해 DB에 UPSERT
     - reprt_code 폴백: 11011 → 11012 → 11013 → 11014 → 감사보고서(F001)
+    - audit_only=True 기업은 finstate 시도 없이 바로 감사보고서 파싱
     - DB-First: UPSERT on_conflict 무시
     """
     supabase = get_supabase_client()
@@ -256,17 +257,35 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
     mappings: dict[str, str] = dict(_BUILTIN_ACCOUNT_MAPPINGS)
     mappings.update({row["account_nm"]: row["account_key"] for row in (mappings_res.data or [])})
 
+    # audit_only 플래그 조회 — True면 finstate 20번 시도 스킵
+    try:
+        corp_res = supabase.table("companies").select("audit_only").eq("corp_code", corp_code).single().execute()
+        audit_only: bool = bool((corp_res.data or {}).get("audit_only", False))
+    except Exception:
+        audit_only = False
+
     for year_offset in range(years):
         bsns_year = str(current_year - year_offset)
 
-        # Step 1: 사업보고서/반기/분기 순서로 시도
         rows: list[dict] = []
-        for reprt_code in _REPRT_CODES:
-            rows = get_financial_statements(corp_code, bsns_year, reprt_code)
-            if rows:
-                break
 
-        # Step 2: 모두 실패하면 감사보고서 HTML 파싱 시도
+        if not audit_only:
+            # Step 1: 사업보고서/반기/분기 순서로 시도
+            for reprt_code in _REPRT_CODES:
+                rows = get_financial_statements(corp_code, bsns_year, reprt_code)
+                if rows:
+                    break
+
+            # finstate 전부 실패 → 이 기업은 감사보고서 전용으로 플래그 저장
+            if not rows:
+                audit_only = True
+                try:
+                    supabase.table("companies").update({"audit_only": True}).eq("corp_code", corp_code).execute()
+                    logger.warning(f"[DART] audit_only=True 저장 corp={corp_code}")
+                except Exception as e:
+                    logger.warning(f"[DART] audit_only 저장 실패 corp={corp_code}: {e}")
+
+        # Step 2: audit_only 기업은 감사보고서 HTML 파싱
         if not rows:
             logger.warning(f"[DART] 감사보고서 폴백 시작 corp={corp_code} year={bsns_year}")
             try:
