@@ -88,13 +88,12 @@ def _parse_amount(text: str) -> Optional[int]:
 
 def _detect_unit_multiplier(soup: BeautifulSoup) -> int:
     """HTML에서 금액 단위(원/천원/백만원) 감지 후 배수 반환.
-    DART HTML은 '단위 : 백만 원', '단위: 백만원', '(단위: 백만원)' 등 다양한 표기 사용.
+    모든 공백 변형(일반/전각/non-breaking 등) 제거 후 '백만원' 포함 여부로 판단.
     """
-    # 공백/전각공백 제거 후 패턴 매칭으로 표기 다양성 대응
-    text_normalized = soup.get_text().replace(" ", "").replace("\u3000", "")
-    if "단위:백만원" in text_normalized:
+    text_normalized = re.sub(r"[\s\u3000\u00a0\u202f\u2009\u200b\t]+", "", soup.get_text())
+    if "백만원" in text_normalized:
         return 1_000_000
-    if "단위:천원" in text_normalized:
+    if "천원" in text_normalized:
         return 1_000
     return 1  # 기본값: 원
 
@@ -188,9 +187,11 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
             if not account_nm or account_nm in ("과목", "계정과목", "구분"):
                 continue
 
-            # 당기 금액: 첫 번째 숫자 컬럼 (보통 두 번째 셀)
+            # 당기 금액: 한글/영문 포함 셀(주석번호, 레이블 등)은 건너뛰고 순수 숫자 셀 탐색
             amount = None
-            for cell in cells[1:3]:
+            for cell in cells[1:]:
+                if re.search(r"[가-힣a-zA-Z]", cell):
+                    continue
                 amount = _parse_amount(cell)
                 if amount is not None:
                     break
