@@ -195,11 +195,18 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
             if not account_nm or account_nm in ("과목", "계정과목", "구분"):
                 continue
 
-            # 당기 금액: 한글/영문 포함 셀(주석번호, 레이블 등)은 건너뛰고 순수 숫자 셀 탐색
+            # 당기 금액 추출:
+            # 1) 한글/영문 셀 제거 (주석 레이블 등)
+            # 2) 쉼표 포함 + 4자리 이상 숫자 셀 우선 (실제 금액 형식: "927,389,000,000")
+            # 3) 없으면 일반 숫자 셀 폴백 (주석번호 "4", "20" 등은 쉼표 없어 우선순위 낮음)
+            non_text = [c for c in cells[1:] if not re.search(r"[가-힣a-zA-Z]", c)]
+            financial = [
+                c for c in non_text
+                if "," in c
+                and len(c.replace(",", "").replace("(", "").replace(")", "").strip()) >= 4
+            ]
             amount = None
-            for cell in cells[1:]:
-                if re.search(r"[가-힣a-zA-Z]", cell):
-                    continue
+            for cell in (financial if financial else non_text):
                 amount = _parse_amount(cell)
                 if amount is not None:
                     break
@@ -231,6 +238,8 @@ _BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
     "매출": "revenue",
     "영업이익": "operating_profit",
     "영업이익(손실)": "operating_profit",
+    "영업손익": "operating_profit",
+    "영업손익(손실)": "operating_profit",
     "당기순이익": "net_income",
     "당기순이익(손실)": "net_income",
     "분기순이익": "net_income",
