@@ -87,11 +87,14 @@ def _parse_amount(text: str) -> Optional[int]:
 
 
 def _detect_unit_multiplier(soup: BeautifulSoup) -> int:
-    """HTML에서 금액 단위(원/천원/백만원) 감지 후 배수 반환"""
-    text = soup.get_text()
-    if "단위 : 백만원" in text or "단위: 백만원" in text or "(단위 : 백만원)" in text:
+    """HTML에서 금액 단위(원/천원/백만원) 감지 후 배수 반환.
+    DART HTML은 '단위 : 백만 원', '단위: 백만원', '(단위: 백만원)' 등 다양한 표기 사용.
+    """
+    # 공백/전각공백 제거 후 패턴 매칭으로 표기 다양성 대응
+    text_normalized = soup.get_text().replace(" ", "").replace("\u3000", "")
+    if "단위:백만원" in text_normalized:
         return 1_000_000
-    if "단위 : 천원" in text or "단위: 천원" in text or "(단위 : 천원)" in text:
+    if "단위:천원" in text_normalized:
         return 1_000
     return 1  # 기본값: 원
 
@@ -278,7 +281,9 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
         upsert_data = []
         for row in rows:
             account_nm: str = row.get("account_nm", "") or ""
-            account_key = mappings.get(account_nm)
+            # 글자 사이 공백 포함된 계정명도 매핑 가능하도록 정규화하여 조회
+            account_nm_normalized = account_nm.replace(" ", "").replace("\u3000", "")
+            account_key = mappings.get(account_nm) or mappings.get(account_nm_normalized)
             if account_key is None:
                 account_key = account_nm  # 원본명 그대로
                 logger.warning(f"Unmapped account: '{account_nm}' for {corp_code}/{bsns_year}")
