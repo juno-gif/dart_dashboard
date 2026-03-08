@@ -158,7 +158,9 @@ export default function DashboardPage() {
       {/* 기업 검색 (5개 도달 시 비활성화) */}
       <div className="space-y-1">
         <div className="flex gap-2">
-          <CompanySearchInput onSelect={handleSelect} disabled={isAtMax} />
+          <div className="flex-1 min-w-0">
+            <CompanySearchInput onSelect={handleSelect} disabled={isAtMax} />
+          </div>
           {selectedCompanies.length > 0 && (
             <button
               onClick={() => setSelectedCompanies([])}

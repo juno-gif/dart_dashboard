@@ -52,6 +52,7 @@ def get_financial_statements(
 ) -> list[dict]:
     """DART에서 재무제표 단건 조회
     reprt_code: 11011=사업보고서, 11012=반기, 11013=1분기, 11014=3분기
+    finstate() (fnlttSinglAcnt)는 IS/BS만 반환하므로 CF는 finstate_all()로 별도 보완.
     """
     dart = _get_dart()
     try:
@@ -64,7 +65,37 @@ def get_financial_statements(
         logger.warning(f"[DART] finstate 빈 결과 corp={corp_code} year={bsns_year}")
         return []
     logger.info(f"[DART] finstate 성공 corp={corp_code} year={bsns_year} rows={len(df)}")
-    return df.to_dict("records")
+    rows = df.to_dict("records")
+
+    # finstate()는 CF(현금흐름표) 미포함 경우 있음 → finstate_all()로 CF 행 보완
+    has_cf = any(str(r.get("sj_div", "")).upper() == "CF" for r in rows)
+    if not has_cf:
+        cf_rows = _get_cf_rows_from_finstate_all(dart, corp_code, bsns_year, reprt_code)
+        rows.extend(cf_rows)
+
+    return rows
+
+
+def _get_cf_rows_from_finstate_all(
+    dart, corp_code: str, bsns_year: str, reprt_code: str
+) -> list[dict]:
+    """finstate_all()에서 CF(현금흐름표) 행만 추출 — CFS 우선, 없으면 OFS."""
+    for fs_div in ("CFS", "OFS"):
+        try:
+            df = dart.finstate_all(corp_code, bsns_year, reprt_code, fs_div=fs_div)
+        except Exception as e:
+            logger.warning(f"[DART] finstate_all CF 조회 실패 corp={corp_code} year={bsns_year} fs={fs_div}: {e}")
+            continue
+        if df is None or isinstance(df, dict) or not hasattr(df, "empty") or df.empty:
+            continue
+        if "sj_div" not in df.columns:
+            continue
+        cf_df = df[df["sj_div"].str.upper() == "CF"]
+        if cf_df.empty:
+            continue
+        logger.info(f"[DART] finstate_all CF 보완 corp={corp_code} year={bsns_year} fs={fs_div} rows={len(cf_df)}")
+        return cf_df.to_dict("records")
+    return []
 
 
 # ── 감사보고서 파싱 ──────────────────────────────────────────────────────────
