@@ -12,7 +12,7 @@ import { DartWarningBanner } from '@/components/layout/DartWarningBanner'
 import { SaveAnalysisSetDialog } from '@/components/layout/SaveAnalysisSetDialog'
 import { AnalysisSetPanel } from '@/components/layout/AnalysisSetItem'
 import { UpdateAnalysisSetDialog } from '@/components/layout/UpdateAnalysisSetDialog'
-import { checkHealth, getNewDataStatus } from '@/lib/api'
+import { checkHealth, getNewDataStatus, getCompaniesByCodes } from '@/lib/api'
 import type { AnalysisSetData } from '@/lib/api'
 import type { Company, FinancialType } from '@/types'
 import { ManualEntryDialog } from '@/components/search/ManualEntryDialog'
@@ -93,13 +93,19 @@ export default function DashboardPage() {
 
   const handleLoadAnalysisSet = async (setId: string) => {
     const data = await loadSet.mutateAsync(setId)
-    const restored: Company[] = data.company_codes.slice(0, MAX_COMPANIES).map((code) => ({
-      corp_code: code,
-      company_name: code,
-      stock_code: null,
-      is_listed: true,
-      created_at: '',
-    }))
+    const codes = data.company_codes.slice(0, MAX_COMPANIES)
+    const companies = await getCompaniesByCodes(codes)
+    const nameMap = new Map(companies.map((c) => [c.corp_code, c]))
+    const restored: Company[] = codes.map((code) => {
+      const found = nameMap.get(code)
+      return found ?? {
+        corp_code: code,
+        company_name: code,
+        stock_code: null,
+        is_listed: true,
+        created_at: '',
+      }
+    })
     setSelectedCompanies(restored)
   }
 
@@ -151,7 +157,17 @@ export default function DashboardPage() {
 
       {/* 기업 검색 (5개 도달 시 비활성화) */}
       <div className="space-y-1">
-        <CompanySearchInput onSelect={handleSelect} disabled={isAtMax} />
+        <div className="flex gap-2">
+          <CompanySearchInput onSelect={handleSelect} disabled={isAtMax} />
+          {selectedCompanies.length > 0 && (
+            <button
+              onClick={() => setSelectedCompanies([])}
+              className="shrink-0 px-3 py-1.5 text-sm border rounded-md text-muted-foreground hover:bg-muted transition-colors"
+            >
+              초기화
+            </button>
+          )}
+        </div>
         {isAtMax && (
           <p className="text-xs text-muted-foreground px-1">
             최대 5개 기업까지 비교 가능

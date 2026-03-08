@@ -50,6 +50,23 @@ async def get_new_data_status(
     return {"new_data_codes": [row["corp_code"] for row in (res.data or [])]}
 
 
+@router.get("/companies/by-codes", response_model=list[Company])
+async def get_companies_by_codes(
+    codes: str = Query(..., description="콤마 구분된 corp_code 목록"),
+    _: object = Depends(get_current_user),
+):
+    """corp_code 배치 조회 — 분석 세트 불러오기 시 회사명 복원용"""
+    supabase = get_supabase_client()
+    code_list = [c.strip() for c in codes.split(",") if c.strip()]
+    if not code_list:
+        return []
+    try:
+        res = supabase.table("companies").select("*").in_("corp_code", code_list).execute()
+    except Exception:
+        return []
+    return res.data or []
+
+
 @router.get("/companies/search", response_model=list[Company])
 async def search_companies(
     q: str = Query(..., min_length=1, description="기업명 또는 종목코드"),

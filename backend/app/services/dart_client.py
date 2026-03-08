@@ -36,7 +36,7 @@ def search_companies(keyword: str) -> list[dict]:
     df = dart.corp_codes
     if df is None or df.empty:
         return []
-    filtered = df[df["corp_name"].str.contains(keyword, na=False)].copy()
+    filtered = df[df["corp_name"].str.contains(keyword, na=False, case=False)].copy()
     if filtered.empty:
         return []
     filtered["_exact"] = (filtered["corp_name"] == keyword).astype(int)

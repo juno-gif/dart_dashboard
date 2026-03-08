@@ -101,6 +101,12 @@ export async function getCompareFinancials(
   )
 }
 
+// ── 기업 배치 조회 ──────────────────────────────────────
+export async function getCompaniesByCodes(codes: string[]): Promise<Company[]> {
+  if (codes.length === 0) return []
+  return apiGet<Company[]>(`/api/v1/companies/by-codes?codes=${encodeURIComponent(codes.join(','))}`)
+}
+
 // ── 분석 세트 ───────────────────────────────────────────
 export interface AnalysisSetData {
   id: string
