@@ -85,7 +85,7 @@ class AnalysisSetUpdate(BaseModel):
 class AnalysisSet(BaseModel):
     id: str
     name: str
-    owner_id: str
+    owner_id: Optional[str] = None
     company_codes: list[str]
     share_token: Optional[str] = None
     created_at: str
