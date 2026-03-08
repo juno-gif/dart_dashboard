@@ -1,5 +1,6 @@
 'use client'
 
+import { formatYearLabel } from '@/lib/format'
 import type { FinancialStatement, FinancialType } from '@/types'
 
 const ACCOUNT_LABELS: Record<string, string> = {
@@ -46,6 +47,12 @@ export function FinancialTable({ data, chartType, companies }: Props) {
     a.localeCompare(b)
   )
 
+  // 연도별 reprt_code 맵 (부분연도 레이블용)
+  const yearReprtMap = new Map<string, string>()
+  for (const d of data) {
+    if (!yearReprtMap.has(d.bsns_year)) yearReprtMap.set(d.bsns_year, d.reprt_code)
+  }
+
   if (isCompare) {
     // 비교 모드: 기업별 그룹 → 행: 계정, 열: 연도
     return (
@@ -57,7 +64,7 @@ export function FinancialTable({ data, chartType, companies }: Props) {
           return (
             <div key={company.corp_code}>
               <p className="text-xs font-semibold mb-1">{company.company_name}</p>
-              <TableGrid data={companyData} accountKeys={accountKeys} years={years} />
+              <TableGrid data={companyData} accountKeys={accountKeys} years={years} yearReprtMap={yearReprtMap} />
             </div>
           )
         })}
@@ -69,7 +76,7 @@ export function FinancialTable({ data, chartType, companies }: Props) {
   return (
     <div className="mt-6">
       <h3 className="text-sm font-medium text-muted-foreground mb-2">데이터 테이블 (억원)</h3>
-      <TableGrid data={data} accountKeys={accountKeys} years={years} />
+      <TableGrid data={data} accountKeys={accountKeys} years={years} yearReprtMap={yearReprtMap} />
     </div>
   )
 }
@@ -78,10 +85,12 @@ function TableGrid({
   data,
   accountKeys,
   years,
+  yearReprtMap,
 }: {
   data: FinancialStatement[]
   accountKeys: string[]
   years: string[]
+  yearReprtMap: Map<string, string>
 }) {
   // (account_key, bsns_year) → amount 맵
   const map = new Map<string, number>()
@@ -97,7 +106,7 @@ function TableGrid({
             <th className="text-left px-3 py-2 font-medium text-muted-foreground w-28">구분</th>
             {years.map((y) => (
               <th key={y} className="text-right px-3 py-2 font-medium text-muted-foreground">
-                {y}
+                {formatYearLabel(y, yearReprtMap.get(y) ?? '')}
               </th>
             ))}
           </tr>

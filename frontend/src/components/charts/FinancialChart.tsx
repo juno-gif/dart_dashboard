@@ -12,7 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatKRW } from '@/lib/format'
+import { formatKRW, formatYearLabel } from '@/lib/format'
 import { DownloadButton } from '@/components/charts/DownloadButton'
 import type { FinancialStatement, FinancialType } from '@/types'
 
@@ -60,6 +60,12 @@ export function FinancialChart({ data, isLoading, companyName, type = 'pl' }: Pr
 
   const years = [...new Set(data.map((d) => d.bsns_year))].sort()
 
+  // 연도별 reprt_code 맵 (부분연도 레이블용)
+  const yearReprtMap = new Map<string, string>()
+  for (const d of data) {
+    if (!yearReprtMap.has(d.bsns_year)) yearReprtMap.set(d.bsns_year, d.reprt_code)
+  }
+
   if (years.length === 0) {
     return (
       <div className="h-80 flex items-center justify-center text-sm text-muted-foreground">
@@ -89,7 +95,11 @@ export function FinancialChart({ data, isLoading, companyName, type = 'pl' }: Pr
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+            <XAxis
+              dataKey="year"
+              tick={{ fontSize: 12 }}
+              tickFormatter={(y: string) => formatYearLabel(y, yearReprtMap.get(y) ?? '')}
+            />
             <YAxis
               tickFormatter={(v: number) => formatKRW(v)}
               width={80}

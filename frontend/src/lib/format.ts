@@ -26,6 +26,18 @@ export function formatPercent(value: number, digits = 1): string {
   return `${sign}${value.toFixed(digits)}%`
 }
 
+const REPRT_SUFFIX: Record<string, string> = {
+  '11012': '(~2Q)',
+  '11013': '(~1Q)',
+  '11014': '(~3Q)',
+}
+
+/** bsns_year + reprt_code → "2025" 또는 "2025(~3Q)" 형태 레이블 */
+export function formatYearLabel(year: string, reprtCode: string): string {
+  const suffix = REPRT_SUFFIX[reprtCode] ?? ''
+  return suffix ? `${year}${suffix}` : year
+}
+
 export function formatDate(isoString: string): string {
   const date = new Date(isoString)
   return date.toLocaleDateString('ko-KR', {

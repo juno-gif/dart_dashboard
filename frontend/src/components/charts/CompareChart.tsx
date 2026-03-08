@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatKRW } from '@/lib/format'
+import { formatKRW, formatYearLabel } from '@/lib/format'
 import { DownloadButton } from '@/components/charts/DownloadButton'
 import type { Company, FinancialStatement } from '@/types'
 
@@ -74,6 +74,12 @@ export function CompareChart({ data, companies, isLoading }: Props) {
 
   const codes = companies.map((c) => c.corp_code)
 
+  // 연도별 reprt_code 맵 (부분연도 레이블용)
+  const yearReprtMap = new Map<string, string>()
+  for (const d of data) {
+    if (!yearReprtMap.has(d.bsns_year)) yearReprtMap.set(d.bsns_year, d.reprt_code)
+  }
+
   return (
     <div>
       <div className="flex justify-end mb-1">
@@ -94,7 +100,11 @@ export function CompareChart({ data, companies, isLoading }: Props) {
                     margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="year" tick={{ fontSize: 12 }} />
+                    <XAxis
+                      dataKey="year"
+                      tick={{ fontSize: 12 }}
+                      tickFormatter={(y: string) => formatYearLabel(y, yearReprtMap.get(y) ?? '')}
+                    />
                     <YAxis
                       tickFormatter={(v: number) => formatKRW(v)}
                       width={80}

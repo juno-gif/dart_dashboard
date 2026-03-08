@@ -362,7 +362,16 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
                 account_key = account_nm  # 원본명 그대로
                 logger.warning(f"Unmapped account: '{account_nm}' for {corp_code}/{bsns_year}")
 
-            raw_amount = row.get("thstrm_amount", None)
+            # 분기/반기 보고서의 IS·CF 계정은 누적(YTD) 금액 사용
+            # thstrm_amount = 해당 분기 단독 금액 (3개월치)
+            # thstrm_add_amount = 당해 연도 누적 금액 → IS·CF에 올바른 값
+            sj_div = str(row.get("sj_div", ""))
+            row_reprt_code = str(row.get("reprt_code", "11011"))
+            use_cumulative = row_reprt_code in ("11012", "11013", "11014") and sj_div in ("IS", "CIS", "CF")
+            if use_cumulative:
+                raw_amount = row.get("thstrm_add_amount") or row.get("thstrm_amount")
+            else:
+                raw_amount = row.get("thstrm_amount", None)
             try:
                 amount = int(str(raw_amount).replace(",", "")) if raw_amount else None
             except (ValueError, TypeError):
