@@ -282,25 +282,8 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
     except Exception:
         audit_only = False
 
-    # 이미 revenue가 존재하는 연도는 스킵 (부분 sync 후 재호출 시 중복 API 호출 방지)
-    try:
-        existing_res = (
-            supabase.table("financial_statements")
-            .select("bsns_year")
-            .eq("corp_code", corp_code)
-            .eq("account_key", "revenue")
-            .execute()
-        )
-        years_with_revenue: set[str] = {r["bsns_year"] for r in (existing_res.data or [])}
-    except Exception:
-        years_with_revenue = set()
-
     for year_offset in range(years):
         bsns_year = str(current_year - year_offset)
-
-        if bsns_year in years_with_revenue:
-            logger.info(f"[DART] sync 스킵 (revenue 기존재) corp={corp_code} year={bsns_year}")
-            continue
 
         rows: list[dict] = []
 
