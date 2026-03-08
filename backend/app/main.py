@@ -23,11 +23,23 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """
     애플리케이션 생명주기 관리
-    - 시작 시: APScheduler 초기화 (Story 3.3)
+    - 시작 시: APScheduler 초기화 (Story 3.3) + DART 웜업 (첫 검색 지연 방지)
     - 종료 시: scheduler.shutdown()으로 정리
     """
+    import asyncio
     from app.scheduler.tasks import start_scheduler
+    from app.services.dart_client import _get_dart
+
     scheduler = start_scheduler()
+
+    # DART OpenDartReader 웜업 — corp_codes 다운로드를 백그라운드에서 미리 수행
+    loop = asyncio.get_event_loop()
+    try:
+        await loop.run_in_executor(None, _get_dart)
+        logger.info("[STARTUP] DART 웜업 완료")
+    except Exception as e:
+        logger.warning(f"[STARTUP] DART 웜업 실패 (첫 검색이 느릴 수 있음): {e}")
+
     yield
     scheduler.shutdown(wait=False)
     logger.info("[SCHEDULER] APScheduler 종료")

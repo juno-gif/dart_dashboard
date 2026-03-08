@@ -41,9 +41,9 @@ export function FinancialTable({ data, chartType, companies }: Props) {
   const accountKeys = ACCOUNT_ORDER[chartType]
   const isCompare = companies && companies.length >= 2
 
-  // 연도 목록 (최근순 정렬)
+  // 연도 목록 (오름차순 — 좌: 과거, 우: 최신)
   const years = [...new Set(data.map((d) => d.bsns_year))].sort((a, b) =>
-    b.localeCompare(a)
+    a.localeCompare(b)
   )
 
   if (isCompare) {

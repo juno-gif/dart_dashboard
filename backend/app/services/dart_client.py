@@ -88,9 +88,17 @@ def _parse_amount(text: str) -> Optional[int]:
 
 def _detect_unit_multiplier(soup: BeautifulSoup) -> int:
     """HTML에서 금액 단위(원/천원/백만원) 감지 후 배수 반환.
-    모든 공백 변형(일반/전각/non-breaking 등) 제거 후 '백만원' 포함 여부로 판단.
+    '단위:원' 명시를 가장 먼저 확인 — 주석 등에 '백만원'이 언급돼도 오탐 방지.
     """
     text_normalized = re.sub(r"[\s\u3000\u00a0\u202f\u2009\u200b\t]+", "", soup.get_text())
+    # 명시적 단위 표기를 최우선으로 확인 (예: "(단위: 원)", "(단위 : 백만원)")
+    if "단위:원" in text_normalized:
+        return 1
+    if "단위:백만원" in text_normalized:
+        return 1_000_000
+    if "단위:천원" in text_normalized:
+        return 1_000
+    # 명시 없을 때 폴백: 문서 내 단위 키워드 탐색
     if "백만원" in text_normalized:
         return 1_000_000
     if "천원" in text_normalized:
@@ -303,7 +311,13 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
             account_nm: str = row.get("account_nm", "") or ""
             # 글자 사이 공백 포함된 계정명도 매핑 가능하도록 정규화하여 조회
             account_nm_normalized = account_nm.replace(" ", "").replace("\u3000", "")
-            account_key = mappings.get(account_nm) or mappings.get(account_nm_normalized)
+            # 로마자/아라비아숫자 접두사 제거 (예: "I.영업수익" → "영업수익", "1.매출액" → "매출액")
+            account_nm_no_prefix = re.sub(r"^[IVXLCDMivxlcdm\d]+\.", "", account_nm_normalized)
+            account_key = (
+                mappings.get(account_nm)
+                or mappings.get(account_nm_normalized)
+                or mappings.get(account_nm_no_prefix)
+            )
             if account_key is None:
                 account_key = account_nm  # 원본명 그대로
                 logger.warning(f"Unmapped account: '{account_nm}' for {corp_code}/{bsns_year}")
