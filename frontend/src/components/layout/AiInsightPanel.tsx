@@ -29,14 +29,19 @@ export function AiInsightPanel({ setId, setName, isOpen, onClose }: AiInsightPan
   const [lastFailedQuestion, setLastFailedQuestion] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  const [errorDetail, setErrorDetail] = useState<string | null>(null)
+
   const summaryMutation = useMutation({
     mutationFn: () => requestAiSummary(setId),
     onSuccess: (data) => {
       setHasError(false)
+      setErrorDetail(null)
       setMessages([{ role: 'assistant', content: data.content }])
     },
-    onError: () => {
+    onError: (err: unknown) => {
       setHasError(true)
+      const msg = (err as { message?: string })?.message
+      setErrorDetail(msg ?? null)
     },
   })
 
@@ -118,9 +123,13 @@ export function AiInsightPanel({ setId, setName, isOpen, onClose }: AiInsightPan
             <p className="text-sm text-destructive">
               AI 요약을 불러올 수 없습니다. 잠시 후 재시도해 주세요.
             </p>
+            {errorDetail && (
+              <p className="text-xs text-muted-foreground font-mono break-all">{errorDetail}</p>
+            )}
             <button
               onClick={() => {
                 setHasError(false)
+                setErrorDetail(null)
                 summaryMutation.mutate()
               }}
               className="text-xs px-3 py-1.5 rounded border border-border hover:bg-accent transition-colors"

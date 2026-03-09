@@ -339,7 +339,7 @@ async def export_analysis_set_ppt(set_id: str):
 
 
 @router.post("/analysis-sets/{set_id}/ai-summary", response_model=AiSummaryResponse)
-async def ai_summary_analysis_set(set_id: str, body: AiSummaryRequest):
+def ai_summary_analysis_set(set_id: str, body: AiSummaryRequest):
     """AI 재무 요약 및 자연어 질의 응답"""
     supabase = get_supabase_client()
 
@@ -350,7 +350,8 @@ async def ai_summary_analysis_set(set_id: str, body: AiSummaryRequest):
             .eq("id", set_id)
             .execute()
         )
-    except Exception:
+    except Exception as e:
+        logger.error(f"DB error fetching analysis_set {set_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"error": "DB_UNAVAILABLE", "message": "데이터베이스에 일시적 오류가 발생했습니다.", "status_code": 503},
@@ -368,7 +369,8 @@ async def ai_summary_analysis_set(set_id: str, body: AiSummaryRequest):
     for corp_code in existing["company_codes"]:
         try:
             financials_by_corp[corp_code] = get_pl_data(corp_code, years=5)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Could not fetch financials for {corp_code}: {e}")
             financials_by_corp[corp_code] = []
 
     try:
@@ -387,12 +389,13 @@ async def ai_summary_analysis_set(set_id: str, body: AiSummaryRequest):
                 financials_by_corp=financials_by_corp,
             )
             response_type = "summary"
-    except LLMAIError:
+    except LLMAIError as e:
+        logger.error(f"LLM error for analysis_set {set_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
                 "error": "LLM_API_UNAVAILABLE",
-                "message": "AI 요약을 불러올 수 없습니다. 잠시 후 재시도해 주세요.",
+                "message": f"AI 요약 실패: {e}",
                 "status_code": 503,
             },
         )
