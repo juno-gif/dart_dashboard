@@ -192,7 +192,7 @@ export default function DashboardPage() {
               onClick={() => setSelectedCompanies([])}
               className="shrink-0 px-3 py-1.5 text-sm border rounded-md text-muted-foreground hover:bg-muted transition-colors"
             >
-              초기화
+              선택 취소
             </button>
           )}
         </div>
