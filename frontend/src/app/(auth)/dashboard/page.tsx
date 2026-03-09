@@ -276,7 +276,7 @@ export default function DashboardPage() {
           {isCompareMode && (
             <button
               onClick={() => setFocusedCorpCode(null)}
-              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 -mb-2"
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
             >
               ← 전체 비교로 돌아가기
             </button>
