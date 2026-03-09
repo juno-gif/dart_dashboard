@@ -6,29 +6,30 @@ AI 요약 서비스 — Story 6.2
 import os
 from typing import Optional
 
-import anthropic
+import google.generativeai as genai
 
 # 모듈 레벨 지연 싱글턴 — 요청마다 재생성 방지
-_anthropic_client: Optional[anthropic.Anthropic] = None
+_model: Optional[genai.GenerativeModel] = None
 
 
 class LLMAIError(Exception):
     """LLM API 호출 실패 시 발생"""
 
 
-def _get_client() -> anthropic.Anthropic:
-    """Anthropic 클라이언트 지연 싱글턴 반환.
+def _get_model() -> genai.GenerativeModel:
+    """Gemini 모델 지연 싱글턴 반환.
 
     Raises:
-        LLMAIError: ANTHROPIC_API_KEY 미설정 시
+        LLMAIError: GOOGLE_API_KEY 미설정 시
     """
-    global _anthropic_client
-    if _anthropic_client is None:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+    global _model
+    if _model is None:
+        api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
-            raise LLMAIError("ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다")
-        _anthropic_client = anthropic.Anthropic(api_key=api_key)
-    return _anthropic_client
+            raise LLMAIError("GOOGLE_API_KEY 환경변수가 설정되지 않았습니다")
+        genai.configure(api_key=api_key)
+        _model = genai.GenerativeModel("gemini-1.5-flash")
+    return _model
 
 
 def generate_financial_summary(
@@ -136,7 +137,7 @@ def _build_financial_context(
 
 
 def _call_llm(system_prompt: str, user_message: str, max_tokens: int) -> str:
-    """Anthropic Claude API 호출.
+    """Google Gemini API 호출.
 
     Args:
         system_prompt: 시스템 프롬프트
@@ -150,15 +151,13 @@ def _call_llm(system_prompt: str, user_message: str, max_tokens: int) -> str:
         LLMAIError: API 호출 실패 시
     """
     try:
-        client = _get_client()
-        message = client.messages.create(
-            model="claude-3-5-haiku-20241022",
-            max_tokens=max_tokens,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
+        model = _get_model()
+        response = model.generate_content(
+            f"{system_prompt}\n\n{user_message}",
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=max_tokens,
+            ),
         )
-        return message.content[0].text
-    except anthropic.APIError as e:
-        raise LLMAIError(f"LLM API 호출 실패: {e}") from e
+        return response.text
     except Exception as e:
-        raise LLMAIError(f"LLM 호출 중 오류 발생: {e}") from e
+        raise LLMAIError(f"LLM API 호출 실패: {e}") from e

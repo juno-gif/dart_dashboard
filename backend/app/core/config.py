@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     FRONTEND_URL: str = "http://localhost:3000"
+    GOOGLE_API_KEY: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
