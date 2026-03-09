@@ -37,8 +37,9 @@ async function getSharedData(token: string): Promise<SharedData | null> {
 
 const PL_KEYS = ['revenue', 'operating_profit', 'net_income']
 
-export default async function SharedPage({ params }: { params: { token: string } }) {
-  const data = await getSharedData(params.token)
+export default async function SharedPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params
+  const data = await getSharedData(token)
 
   if (!data) {
     notFound()
