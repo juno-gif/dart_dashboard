@@ -28,7 +28,7 @@ def _get_model() -> genai.GenerativeModel:
         if not api_key:
             raise LLMAIError("GOOGLE_API_KEY 환경변수가 설정되지 않았습니다")
         genai.configure(api_key=api_key)
-        _model = genai.GenerativeModel("gemini-2.0-flash")
+        _model = genai.GenerativeModel("gemini-2.5-flash")
     return _model
 
 
