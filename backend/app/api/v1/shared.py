@@ -38,6 +38,7 @@ async def get_shared_analysis_set(share_token: str):
             },
         )
 
+    logger.info(f"[SHARE] token={share_token!r} res.data={res.data!r}")
     if not res.data:
         raise HTTPException(
             status_code=404,
