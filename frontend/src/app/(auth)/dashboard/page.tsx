@@ -58,19 +58,30 @@ export default function DashboardPage() {
 
   const [chartType, setChartType] = useState<FinancialType>('pl')
   const [fsDivFilter, setFsDivFilter] = useState<'CFS' | 'OFS'>('CFS')
+  // 비교 모드에서 특정 기업 상세 드릴다운
+  const [focusedCorpCode, setFocusedCorpCode] = useState<string | null>(null)
 
   const isCompareMode = selectedCompanies.length >= 2
   const isAtMax = selectedCompanies.length >= MAX_COMPANIES
   const primaryCompany = selectedCompanies[0] ?? null
 
-  // 기업 변경 시 연결/별도 필터 초기화
+  // 비교 모드 해제 시 포커스 초기화
+  useEffect(() => {
+    if (!isCompareMode) setFocusedCorpCode(null)
+  }, [isCompareMode])
+
+  // 단일 기업 상세 조회 대상: 단일 모드면 primaryCompany, 비교 모드면 focusedCorpCode
+  const detailCorpCode = !isCompareMode ? (primaryCompany?.corp_code ?? null) : focusedCorpCode
+  const detailCompany = detailCorpCode ? (selectedCompanies.find((c) => c.corp_code === detailCorpCode) ?? null) : null
+
+  // 기업(상세 대상) 변경 시 연결/별도 필터 초기화
   useEffect(() => {
     setFsDivFilter('CFS')
-  }, [primaryCompany?.corp_code])
+  }, [detailCorpCode])
 
-  // 단일 기업: CFS+OFS 전체 조회 후 클라이언트 필터링
+  // 단일/포커스 기업: CFS+OFS 전체 조회 후 클라이언트 필터링
   const { data: allFinancials = [], isLoading: singleLoading, error: singleError } = useFinancialData(
-    !isCompareMode ? (primaryCompany?.corp_code ?? null) : null,
+    detailCorpCode,
     10,
     chartType
     // fsDivParam 기본값 'ALL' — 훅에서 지정됨
@@ -88,8 +99,9 @@ export default function DashboardPage() {
       isCompareMode ? selectedCompanies.map((c) => c.corp_code) : []
     )
 
-  const activeError = isCompareMode ? compareError : singleError
-  const activeData = isCompareMode ? compareData : financials
+  const isDetailView = !isCompareMode || !!focusedCorpCode
+  const activeError = isDetailView ? singleError : compareError
+  const activeData = isDetailView ? financials : compareData
   const hasDartError =
     (activeError as { error?: string } | null)?.error === 'DART_API_UNAVAILABLE'
 
@@ -101,9 +113,8 @@ export default function DashboardPage() {
   }
 
   const handleRemove = (corp_code: string) => {
-    setSelectedCompanies((prev) =>
-      prev.filter((c) => c.corp_code !== corp_code)
-    )
+    setSelectedCompanies((prev) => prev.filter((c) => c.corp_code !== corp_code))
+    if (focusedCorpCode === corp_code) setFocusedCorpCode(null)
   }
 
   const handleLoadAnalysisSet = async (setId: string) => {
@@ -193,44 +204,55 @@ export default function DashboardPage() {
       </div>
 
       {/* CompanyTag 목록 */}
+      {isCompareMode && (
+        <p className="text-xs text-muted-foreground -mb-1">기업 태그를 클릭하면 상세 실적을 확인할 수 있습니다.</p>
+      )}
       <div className="flex flex-wrap gap-2">
-        {selectedCompanies.map((c, idx) => (
-          <div
-            key={c.corp_code}
-            className="flex items-center gap-1 px-3 py-1 rounded-full text-sm border"
-            style={{
-              backgroundColor: `${COMPANY_COLORS[idx % COMPANY_COLORS.length]}18`,
-              borderColor: COMPANY_COLORS[idx % COMPANY_COLORS.length],
-            }}
-          >
-            {newDataCodes.has(c.corp_code) && (
-              <span className="text-green-500 text-xs" title="신규 데이터 있음">●</span>
-            )}
-            <span>{c.company_name}</span>
-            {!c.is_listed && (
-              <span className="text-xs text-muted-foreground">(비상장)</span>
-            )}
-            {c.stock_code && (
-              <span className="text-xs text-gray-500 ml-1">{c.stock_code}</span>
-            )}
-            {!c.is_listed && (
-              <button
-                onClick={() => setEditingCorpCode(c.corp_code)}
-                className="ml-1 text-xs text-blue-500 hover:text-blue-700"
-                aria-label={`${c.company_name} 재무 데이터 수정`}
-              >
-                편집
-              </button>
-            )}
-            <button
-              onClick={() => handleRemove(c.corp_code)}
-              className="ml-1 text-gray-400 hover:text-gray-600"
-              aria-label={`${c.company_name} 제거`}
+        {selectedCompanies.map((c, idx) => {
+          const isFocused = focusedCorpCode === c.corp_code
+          const color = COMPANY_COLORS[idx % COMPANY_COLORS.length]
+          return (
+            <div
+              key={c.corp_code}
+              onClick={isCompareMode ? () => setFocusedCorpCode(isFocused ? null : c.corp_code) : undefined}
+              className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm border transition-all ${
+                isCompareMode ? 'cursor-pointer hover:opacity-80' : ''
+              } ${isFocused ? 'ring-2 ring-offset-1 ring-current' : ''}`}
+              style={{
+                backgroundColor: `${color}${isFocused ? '30' : '18'}`,
+                borderColor: color,
+                color: isFocused ? color : undefined,
+              }}
             >
-              ×
-            </button>
-          </div>
-        ))}
+              {newDataCodes.has(c.corp_code) && (
+                <span className="text-green-500 text-xs" title="신규 데이터 있음">●</span>
+              )}
+              <span>{c.company_name}</span>
+              {!c.is_listed && (
+                <span className="text-xs opacity-60">(비상장)</span>
+              )}
+              {c.stock_code && (
+                <span className="text-xs opacity-50 ml-1">{c.stock_code}</span>
+              )}
+              {!c.is_listed && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditingCorpCode(c.corp_code) }}
+                  className="ml-1 text-xs text-blue-500 hover:text-blue-700"
+                  aria-label={`${c.company_name} 재무 데이터 수정`}
+                >
+                  편집
+                </button>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); handleRemove(c.corp_code) }}
+                className="ml-1 opacity-40 hover:opacity-80"
+                aria-label={`${c.company_name} 제거`}
+              >
+                ×
+              </button>
+            </div>
+          )
+        })}
       </div>
 
       {/* DART 경고 배너 */}
@@ -238,8 +260,8 @@ export default function DashboardPage() {
         <DartWarningBanner data={activeData} hasDartError={hasDartError} />
       )}
 
-      {/* 뷰 전환: 비교 / 단일 / 빈 상태 */}
-      {isCompareMode ? (
+      {/* 뷰 전환: 비교 / 드릴다운 / 단일 / 빈 상태 */}
+      {isCompareMode && !focusedCorpCode ? (
         <>
           <CompareChart
             data={compareData}
@@ -248,8 +270,17 @@ export default function DashboardPage() {
           />
           <FinancialTable data={compareData} chartType="pl" companies={selectedCompanies} />
         </>
-      ) : primaryCompany ? (
+      ) : detailCompany ? (
         <>
+          {/* 비교 모드 드릴다운 시 돌아가기 링크 */}
+          {isCompareMode && (
+            <button
+              onClick={() => setFocusedCorpCode(null)}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 -mb-2"
+            >
+              ← 전체 비교로 돌아가기
+            </button>
+          )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div className="flex gap-2">
               {(['pl', 'bs', 'cf'] as FinancialType[]).map((t) => (
@@ -285,7 +316,7 @@ export default function DashboardPage() {
             )}
           </div>
           <KPICard data={financials} isLoading={singleLoading} chartType={chartType} />
-          <FinancialChart data={financials} isLoading={singleLoading} companyName={primaryCompany.company_name} type={chartType} />
+          <FinancialChart data={financials} isLoading={singleLoading} companyName={detailCompany.company_name} type={chartType} />
           <FinancialTable data={financials} chartType={chartType} />
         </>
       ) : (
