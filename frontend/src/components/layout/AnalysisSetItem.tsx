@@ -1,13 +1,11 @@
 'use client'
 
-import { useState } from 'react'
 import { Loader2, Trash2 } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { AnalysisSetData } from '@/lib/api'
 import { exportAnalysisSetPpt } from '@/lib/api'
 import { ShareDialog } from '@/components/layout/ShareDialog'
-import { AiInsightPanel } from '@/components/layout/AiInsightPanel'
 
 interface AnalysisSetItemProps {
   set: AnalysisSetData
@@ -22,8 +20,6 @@ export function AnalysisSetItem({
   onDelete,
   onEdit,
 }: AnalysisSetItemProps) {
-  const [isAiPanelOpen, setIsAiPanelOpen] = useState(false)
-
   const pptMutation = useMutation({
     mutationFn: () => exportAnalysisSetPpt(set.id),
     onSuccess: (blob) => {
@@ -44,12 +40,6 @@ export function AnalysisSetItem({
 
   return (
     <>
-    <AiInsightPanel
-      setId={set.id}
-      setName={set.name}
-      isOpen={isAiPanelOpen}
-      onClose={() => setIsAiPanelOpen(false)}
-    />
     <div className="flex items-center gap-1 group">
       <button
         onClick={() => onLoad(set.id)}
@@ -63,13 +53,6 @@ export function AnalysisSetItem({
 
       <>
         <ShareDialog setId={set.id} />
-        <button
-          onClick={() => setIsAiPanelOpen(true)}
-          className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity text-xs"
-          title="AI 인사이트"
-        >
-          AI
-        </button>
         <button
           onClick={() => pptMutation.mutate()}
           disabled={pptMutation.isPending}
