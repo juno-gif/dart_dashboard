@@ -56,7 +56,7 @@ def generate_financial_summary(
         "아래 재무 데이터를 바탕으로 핵심 트렌드(매출 성장률, 영업이익률 변화, 주요 인사이트)를 "
         "3-5문단으로 한국어로 요약하세요. 수치는 억원 단위로 표현하세요."
     )
-    return _call_llm(system_prompt, context, max_tokens=1024)
+    return _call_llm(system_prompt, context, max_tokens=4096)
 
 
 def answer_financial_question(
@@ -86,7 +86,7 @@ def answer_financial_question(
         "수치는 억원 단위로 표현하세요."
     )
     user_message = f"{context}\n\n질문: {question}"
-    return _call_llm(system_prompt, user_message, max_tokens=1500)
+    return _call_llm(system_prompt, user_message, max_tokens=4096)
 
 
 def _build_financial_context(
