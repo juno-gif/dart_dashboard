@@ -205,7 +205,7 @@ export default function DashboardPage() {
 
       {/* CompanyTag 목록 */}
       {isCompareMode && (
-        <p className="text-xs text-muted-foreground -mb-1">기업 태그를 클릭하면 상세 실적을 확인할 수 있습니다.</p>
+        <p className="text-xs text-muted-foreground">기업 태그를 클릭하면 상세 실적을 확인할 수 있습니다.</p>
       )}
       <div className="flex flex-wrap gap-2">
         {selectedCompanies.map((c, idx) => {
