@@ -73,7 +73,38 @@ def get_financial_statements(
         cf_rows = _get_cf_rows_from_finstate_all(dart, corp_code, bsns_year, reprt_code)
         rows.extend(cf_rows)
 
+    # finstate()가 IS 매출 계정을 누락하는 경우(영업수익 등 CIS 형식 기업) → finstate_all()로 보완
+    _REVENUE_NMS = {"매출액", "영업수익", "수익(매출액)", "매출"}
+    has_revenue = any(
+        str(r.get("account_nm", "")).replace(" ", "") in _REVENUE_NMS for r in rows
+    )
+    if not has_revenue:
+        is_rows = _get_is_rows_from_finstate_all(dart, corp_code, bsns_year, reprt_code)
+        rows.extend(is_rows)
+
     return rows
+
+
+def _get_is_rows_from_finstate_all(
+    dart, corp_code: str, bsns_year: str, reprt_code: str
+) -> list[dict]:
+    """finstate_all()에서 IS/CIS(손익계산서) 행 추출 — 매출 계정 누락 시 보완용."""
+    for fs_div in ("CFS", "OFS"):
+        try:
+            df = dart.finstate_all(corp_code, bsns_year, reprt_code, fs_div=fs_div)
+        except Exception as e:
+            logger.warning(f"[DART] finstate_all IS 조회 실패 corp={corp_code} year={bsns_year} fs={fs_div}: {e}")
+            continue
+        if df is None or isinstance(df, dict) or not hasattr(df, "empty") or df.empty:
+            continue
+        if "sj_div" not in df.columns:
+            continue
+        is_df = df[df["sj_div"].str.upper().isin(["IS", "CIS"])]
+        if is_df.empty:
+            continue
+        logger.info(f"[DART] finstate_all IS 보완 corp={corp_code} year={bsns_year} fs={fs_div} rows={len(is_df)}")
+        return is_df.to_dict("records")
+    return []
 
 
 def _get_cf_rows_from_finstate_all(
