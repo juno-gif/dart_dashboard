@@ -106,7 +106,11 @@ def _get_is_rows_from_finstate_all(
         if is_df.empty:
             continue
         logger.info(f"[DART] finstate_all IS 보완 corp={corp_code} year={bsns_year} fs={fs_div} rows={len(is_df)}")
-        all_rows.extend(is_df.to_dict("records"))
+        # finstate_all 응답에는 fs_div 컬럼이 없으므로 명시적으로 주입
+        rows_list = is_df.to_dict("records")
+        for r in rows_list:
+            r["fs_div"] = fs_div
+        all_rows.extend(rows_list)
     return all_rows
 
 
@@ -433,10 +437,19 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
                 if key not in seen_keys:
                     seen_keys.add(key)
                     deduped.append(item)
-            supabase.table("financial_statements").upsert(
-                deduped,
-                on_conflict="corp_code,bsns_year,reprt_code,fs_div,account_key",
-            ).execute()
+            logger.info(f"[DART] UPSERT 시작 corp={corp_code} year={bsns_year} rows={len(deduped)}")
+            try:
+                res = supabase.table("financial_statements").upsert(
+                    deduped,
+                    on_conflict="corp_code,bsns_year,reprt_code,fs_div,account_key",
+                ).execute()
+                if hasattr(res, "data") and res.data is not None:
+                    logger.info(f"[DART] UPSERT 완료 corp={corp_code} year={bsns_year} saved={len(res.data)}")
+                else:
+                    logger.warning(f"[DART] UPSERT 응답 비정상 corp={corp_code} year={bsns_year} res={res}")
+            except Exception as e:
+                logger.error(f"[DART] UPSERT 실패 corp={corp_code} year={bsns_year}: {e}", exc_info=True)
+                continue
             synced_count += len(deduped)
 
     return {"corp_code": corp_code, "synced_rows": synced_count}
