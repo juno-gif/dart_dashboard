@@ -362,15 +362,8 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
                 rows = get_financial_statements(corp_code, bsns_year, reprt_code)
                 if rows:
                     break
-
-            # finstate 전부 실패 → 이 기업은 감사보고서 전용으로 플래그 저장
-            if not rows:
-                audit_only = True
-                try:
-                    supabase.table("companies").update({"audit_only": True}).eq("corp_code", corp_code).execute()
-                    logger.warning(f"[DART] audit_only=True 저장 corp={corp_code}")
-                except Exception as e:
-                    logger.warning(f"[DART] audit_only 저장 실패 corp={corp_code}: {e}")
+            # 연도별 finstate 실패는 해당 연도만 audit 폴백 — 루프 전체에 audit_only 전파 금지
+            # (연속 실패로 audit_only 플래그 설정은 sync_all_companies 에서만 판단)
 
         # Step 2: audit_only 기업은 감사보고서 HTML 파싱
         if not rows:
