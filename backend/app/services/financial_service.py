@@ -67,7 +67,7 @@ def _query_pl(supabase, corp_code: str, years: int) -> list:
         .eq("corp_code", corp_code)
         .in_("account_key", PL_ACCOUNT_KEYS)
         .order("bsns_year", desc=True)
-        .limit(years * len(PL_ACCOUNT_KEYS) * 2)  # CFS+OFS 대비 버퍼
+        .limit(years * len(PL_ACCOUNT_KEYS) * 6)  # CFS+OFS × 최대 3개 reprt_code 대비 버퍼
         .execute()
     )
     return res.data or []
@@ -103,7 +103,7 @@ def _query_bs(supabase, corp_code: str, years: int) -> list:
         .eq("corp_code", corp_code)
         .in_("account_key", BS_ACCOUNT_KEYS)
         .order("bsns_year", desc=True)
-        .limit(years * len(BS_ACCOUNT_KEYS) * 2)  # CFS+OFS 대비 버퍼
+        .limit(years * len(BS_ACCOUNT_KEYS) * 6)  # CFS+OFS × 최대 3개 reprt_code 대비 버퍼
         .execute()
     )
     return res.data or []
@@ -139,7 +139,7 @@ def _query_cf(supabase, corp_code: str, years: int) -> list:
         .eq("corp_code", corp_code)
         .in_("account_key", CF_ACCOUNT_KEYS)
         .order("bsns_year", desc=True)
-        .limit(years * len(CF_ACCOUNT_KEYS) * 2)  # CFS+OFS 대비 버퍼
+        .limit(years * len(CF_ACCOUNT_KEYS) * 6)  # CFS+OFS × 최대 3개 reprt_code 대비 버퍼
         .execute()
     )
     return res.data or []
