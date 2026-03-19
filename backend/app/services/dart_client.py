@@ -88,7 +88,10 @@ def get_financial_statements(
 def _get_is_rows_from_finstate_all(
     dart, corp_code: str, bsns_year: str, reprt_code: str
 ) -> list[dict]:
-    """finstate_all()에서 IS/CIS(손익계산서) 행 추출 — 매출 계정 누락 시 보완용."""
+    """finstate_all()에서 IS/CIS(손익계산서) 행 추출 — 매출 계정 누락 시 보완용.
+    CFS/OFS 모두 수집해 반환 (연결·별도 둘 다 보완).
+    """
+    all_rows: list[dict] = []
     for fs_div in ("CFS", "OFS"):
         try:
             df = dart.finstate_all(corp_code, bsns_year, reprt_code, fs_div=fs_div)
@@ -103,8 +106,8 @@ def _get_is_rows_from_finstate_all(
         if is_df.empty:
             continue
         logger.info(f"[DART] finstate_all IS 보완 corp={corp_code} year={bsns_year} fs={fs_div} rows={len(is_df)}")
-        return is_df.to_dict("records")
-    return []
+        all_rows.extend(is_df.to_dict("records"))
+    return all_rows
 
 
 def _get_cf_rows_from_finstate_all(
