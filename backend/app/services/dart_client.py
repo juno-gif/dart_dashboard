@@ -128,8 +128,8 @@ def _get_cash_rows_from_finstate_all(
 ) -> list[dict]:
     """finstate_all()에서 현금및현금성자산(기말) 행만 추출 — cash_and_equivalents 누락 시 보완.
     CFS/OFS 모두 수집해 반환.
+    기말 잔액만 추출 (기초/증가/감소 제외).
     """
-    _CASH_ACCT_NMS = {"현금및현금성자산", "현금및현금성자산(기말)"}
     all_rows: list[dict] = []
     for fs_div in ("CFS", "OFS"):
         try:
@@ -144,8 +144,15 @@ def _get_cash_rows_from_finstate_all(
         cf_df = df[df["sj_div"].str.upper() == "CF"]
         if cf_df.empty:
             continue
-        cash_df = cf_df[cf_df["account_nm"].str.replace(" ", "").isin(_CASH_ACCT_NMS)]
+        # 기말 현금 계정 추출: "현금및현금성자산" 포함 + 기초/증가/감소 제외
+        nm = cf_df["account_nm"].str.replace(" ", "", regex=False)
+        cash_df = cf_df[
+            nm.str.contains("현금및현금성자산", na=False)
+            & ~nm.str.contains("기초", na=False)
+            & ~nm.str.contains("증가|감소", na=False, regex=True)
+        ]
         if cash_df.empty:
+            logger.warning(f"[DART] finstate_all cash 없음 corp={corp_code} year={bsns_year} fs={fs_div} CF계정={cf_df['account_nm'].tolist()}")
             continue
         logger.info(f"[DART] finstate_all cash 보완 corp={corp_code} year={bsns_year} fs={fs_div} rows={len(cash_df)}")
         rows_list = cash_df.to_dict("records")
@@ -361,6 +368,10 @@ _BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
     "자본총계": "total_equity",
     "현금및현금성자산": "cash_and_equivalents",
     "현금및현금성자산(기말)": "cash_and_equivalents",
+    "기말의현금및현금성자산": "cash_and_equivalents",
+    "기말의 현금및현금성자산": "cash_and_equivalents",
+    "현금및현금성자산의기말잔액": "cash_and_equivalents",
+    "현금및현금성자산기말잔액": "cash_and_equivalents",
     "영업활동으로인한현금흐름": "operating_cf",
     "영업활동현금흐름": "operating_cf",
     "투자활동으로인한현금흐름": "investing_cf",
