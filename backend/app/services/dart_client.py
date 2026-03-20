@@ -368,6 +368,7 @@ _BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
     "자본총계": "total_equity",
     "현금및현금성자산": "cash_and_equivalents",
     "현금및현금성자산(기말)": "cash_and_equivalents",
+    "기말현금및현금성자산": "cash_and_equivalents",
     "기말의현금및현금성자산": "cash_and_equivalents",
     "기말의 현금및현금성자산": "cash_and_equivalents",
     "현금및현금성자산의기말잔액": "cash_and_equivalents",
