@@ -31,6 +31,7 @@ export interface FinancialStatement {
   account_nm: string | null
   amount: number // 원 단위 BIGINT — formatKRW()로만 변환
   synced_at: string
+  is_fallback?: boolean // CFS 요청 시 해당 연도 CFS 없어 OFS로 폴백된 경우 true
 }
 
 export type FinancialType = 'pl' | 'bs' | 'cf'

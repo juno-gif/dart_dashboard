@@ -53,6 +53,9 @@ export function FinancialTable({ data, chartType, companies }: Props) {
     if (!yearReprtMap.has(d.bsns_year)) yearReprtMap.set(d.bsns_year, d.reprt_code)
   }
 
+  // CFS 없어 OFS로 폴백된 연도 집합
+  const fallbackYears = new Set(data.filter((d) => d.is_fallback).map((d) => d.bsns_year))
+
   if (isCompare) {
     // 비교 모드: 기업별 그룹 → 행: 계정, 열: 연도
     return (
@@ -61,10 +64,11 @@ export function FinancialTable({ data, chartType, companies }: Props) {
         {companies.map((company) => {
           const companyData = data.filter((d) => d.corp_code === company.corp_code)
           if (!companyData.length) return null
+          const companyFallbackYears = new Set(companyData.filter((d) => d.is_fallback).map((d) => d.bsns_year))
           return (
             <div key={company.corp_code}>
               <p className="text-xs font-semibold mb-1">{company.company_name}</p>
-              <TableGrid data={companyData} accountKeys={accountKeys} years={years} yearReprtMap={yearReprtMap} />
+              <TableGrid data={companyData} accountKeys={accountKeys} years={years} yearReprtMap={yearReprtMap} fallbackYears={companyFallbackYears} />
             </div>
           )
         })}
@@ -76,7 +80,7 @@ export function FinancialTable({ data, chartType, companies }: Props) {
   return (
     <div className="mt-6">
       <h3 className="text-sm font-medium text-muted-foreground mb-2">데이터 테이블 (억원)</h3>
-      <TableGrid data={data} accountKeys={accountKeys} years={years} yearReprtMap={yearReprtMap} />
+      <TableGrid data={data} accountKeys={accountKeys} years={years} yearReprtMap={yearReprtMap} fallbackYears={fallbackYears} />
     </div>
   )
 }
@@ -86,11 +90,13 @@ function TableGrid({
   accountKeys,
   years,
   yearReprtMap,
+  fallbackYears,
 }: {
   data: FinancialStatement[]
   accountKeys: string[]
   years: string[]
   yearReprtMap: Map<string, string>
+  fallbackYears: Set<string>
 }) {
   // (account_key, bsns_year) → amount 맵
   const map = new Map<string, number>()
@@ -107,6 +113,9 @@ function TableGrid({
             {years.map((y) => (
               <th key={y} className="text-right px-3 py-2 font-medium text-muted-foreground">
                 {formatYearLabel(y, yearReprtMap.get(y) ?? '')}
+                {fallbackYears.has(y) && (
+                  <span className="ml-1 text-xs text-amber-500 font-normal">(별도)</span>
+                )}
               </th>
             ))}
           </tr>

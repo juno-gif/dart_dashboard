@@ -179,16 +179,38 @@ def _select_recent_years_all(rows: list, years: int) -> list:
     return filtered
 
 
+def _prefer_fs_div_with_fallback(rows: list, years: int, preferred: str) -> list:
+    """preferred fs_div가 있는 연도는 그것을, 없는 연도는 반대 fs_div로 폴백.
+    폴백 행에는 is_fallback=True 플래그 추가.
+    전제: 이미 preferred fs_div가 하나 이상 존재하는 기업에서만 호출.
+    """
+    best: dict = {}
+    for row in rows:
+        key = (row["bsns_year"], row["account_key"])
+        existing = best.get(key)
+        is_fallback = row["fs_div"] != preferred
+        if existing is None:
+            best[key] = {**row, "is_fallback": is_fallback}
+        elif not is_fallback and existing.get("is_fallback", True):
+            best[key] = {**row, "is_fallback": False}
+    return _select_recent_years_all(list(best.values()), years)
+
+
 def _apply_fs_div_filter(rows: list, years: int, fs_div: str | None) -> list:
     """fs_div 파라미터에 따라 필터링:
     - None → CFS 우선 dedup (기본값, 비교 모드 호환)
     - "ALL" → CFS+OFS 모두 반환
-    - "CFS" / "OFS" → 해당 구분만 반환 (없는 연도는 표시 안 함)
+    - "CFS" / "OFS" → preferred 우선, 없는 연도는 반대 fs_div 폴백 (is_fallback=True 플래그)
+      단, 처음부터 preferred fs_div가 전혀 없는 기업은 엄격 필터 적용
     """
     if fs_div == "ALL":
         return _select_recent_years_all(rows, years)
     elif fs_div in ("CFS", "OFS"):
-        filtered = [r for r in rows if r["fs_div"] == fs_div]
-        return _select_recent_years_all(filtered, years)
+        has_preferred = any(r["fs_div"] == fs_div for r in rows)
+        if has_preferred:
+            return _prefer_fs_div_with_fallback(rows, years, fs_div)
+        else:
+            filtered = [r for r in rows if r["fs_div"] == fs_div]
+            return _select_recent_years_all(filtered, years)
     else:
         return _prefer_cfs(rows, years)

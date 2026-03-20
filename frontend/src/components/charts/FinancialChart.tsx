@@ -66,6 +66,9 @@ export function FinancialChart({ data, isLoading, companyName, type = 'pl' }: Pr
     if (!yearReprtMap.has(d.bsns_year)) yearReprtMap.set(d.bsns_year, d.reprt_code)
   }
 
+  // CFS 없어 OFS로 폴백된 연도 집합
+  const fallbackYears = new Set(data.filter((d) => d.is_fallback).map((d) => d.bsns_year))
+
   if (years.length === 0) {
     return (
       <div className="h-80 flex items-center justify-center text-sm text-muted-foreground">
@@ -98,7 +101,10 @@ export function FinancialChart({ data, isLoading, companyName, type = 'pl' }: Pr
             <XAxis
               dataKey="year"
               tick={{ fontSize: 12 }}
-              tickFormatter={(y: string) => formatYearLabel(y, yearReprtMap.get(y) ?? '')}
+              tickFormatter={(y: string) => {
+                const base = formatYearLabel(y, yearReprtMap.get(y) ?? '')
+                return fallbackYears.has(y) ? `${base}(별도)` : base
+              }}
             />
             <YAxis
               yAxisId="left"
