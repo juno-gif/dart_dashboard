@@ -35,9 +35,9 @@ export function PBRTrendChart({ data, isLoading }: Props) {
             <XAxis dataKey="year" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 11 }} width={40} />
             <Tooltip
-              formatter={(value, name: string) => [
+              formatter={(value, name) => [
                 value != null ? Number(value).toFixed(2) : '-',
-                name === 'pbr' ? 'PBR' : 'PER',
+                name === 'pbr' ? 'PBR' : name === 'per' ? 'PER' : String(name ?? ''),
               ]}
             />
             <Legend formatter={(v) => (v === 'pbr' ? 'PBR' : 'PER')} />
