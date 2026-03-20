@@ -11,6 +11,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.auth import get_current_user
 from app.models.schemas import FinancialStatement
 from app.services.financial_service import get_bs_data, get_cf_data, get_pl_data
+from app.services.valuation_service import get_valuation_data
+from app.db.supabase import get_supabase_client
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -112,3 +115,27 @@ def get_financials(
         )
 
     return data
+
+
+# ── Valuation (PBR/PER) 조회 ────────────────────────────
+@router.get("/companies/{corp_code}/valuation")
+def get_valuation(
+    corp_code: str,
+    years: int = 10,
+    _: object = Depends(get_current_user),
+):
+    """상장 기업 PBR/PER 조회 (pykrx, 1일 캐시)
+    - 비상장사 또는 조회 실패 시 current_pbr/current_per=null, yearly=[]
+    """
+    supabase = get_supabase_client()
+    res = (
+        supabase.table("companies")
+        .select("stock_code")
+        .eq("corp_code", corp_code)
+        .single()
+        .execute()
+    )
+    if not res.data or not res.data.get("stock_code"):
+        return {"current_pbr": None, "current_per": None, "yearly": []}
+    stock_code = res.data["stock_code"]
+    return get_valuation_data(stock_code, years=years)

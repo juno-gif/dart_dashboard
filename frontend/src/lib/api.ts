@@ -201,6 +201,17 @@ export async function exportAnalysisSetPpt(setId: string): Promise<Blob> {
   return apiPostBlob(`/api/v1/analysis-sets/${setId}/export/ppt`)
 }
 
+// ── Valuation (PBR/PER) ─────────────────────────────────
+export interface ValuationData {
+  current_pbr: number | null
+  current_per: number | null
+  yearly: { year: string; pbr: number; per: number | null }[]
+}
+
+export async function getValuation(corpCode: string, years = 10): Promise<ValuationData> {
+  return apiGet<ValuationData>(`/api/v1/companies/${corpCode}/valuation?years=${years}`)
+}
+
 // ── AI 재무 요약 ────────────────────────────────────────
 export interface AiSummaryResult {
   type: 'summary' | 'answer'

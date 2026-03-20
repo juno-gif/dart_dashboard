@@ -8,17 +8,35 @@ import { CompareChart, COMPANY_COLORS } from '@/components/charts/CompareChart'
 import { useFinancialData } from '@/hooks/use-financial-data'
 import { useCompareFinancials } from '@/hooks/use-compare-financials'
 import { useAnalysisSets } from '@/hooks/use-analysis-sets'
+import { useValuation } from '@/hooks/use-valuation'
 import { DartWarningBanner } from '@/components/layout/DartWarningBanner'
 import { SaveAnalysisSetDialog } from '@/components/layout/SaveAnalysisSetDialog'
 import { AnalysisSetPanel } from '@/components/layout/AnalysisSetItem'
 import { UpdateAnalysisSetDialog } from '@/components/layout/UpdateAnalysisSetDialog'
 import { checkHealth, getNewDataStatus, getCompaniesByCodes } from '@/lib/api'
 import type { AnalysisSetData } from '@/lib/api'
-import type { Company, FinancialType } from '@/types'
+import type { Company, FinancialStatement, FinancialType } from '@/types'
 import { ManualEntryDialog } from '@/components/search/ManualEntryDialog'
 import { FinancialTable } from '@/components/charts/FinancialTable'
+import { PBRTrendChart } from '@/components/charts/PBRTrendChart'
 
 const MAX_COMPANIES = 5
+
+// CFS 요청 시 account_key 단위로 폴백: preferred fs_div 없는 계정은 반대 fs_div로 보완 + is_fallback 마킹
+function applyFsDivWithFallback(allData: FinancialStatement[], preferredFsDiv: string): FinancialStatement[] {
+  const map = new Map<string, FinancialStatement>()
+  for (const row of allData) {
+    const key = `${row.bsns_year}__${row.account_key}`
+    const existing = map.get(key)
+    const isPreferred = row.fs_div === preferredFsDiv
+    if (!existing) {
+      map.set(key, { ...row, is_fallback: !isPreferred })
+    } else if (isPreferred && existing.is_fallback) {
+      map.set(key, { ...row, is_fallback: false })
+    }
+  }
+  return Array.from(map.values())
+}
 
 export default function DashboardPage() {
   const [selectedCompanies, setSelectedCompanies] = useState<Company[]>([])
@@ -92,12 +110,17 @@ export default function DashboardPage() {
   const showFsDivTabs = availableFsDivs.has('CFS') && availableFsDivs.has('OFS')
   // CFS 없으면 OFS로 자동 전환
   const activeFsDiv = availableFsDivs.has(fsDivFilter) ? fsDivFilter : (availableFsDivs.has('CFS') ? 'CFS' : 'OFS')
-  const financials = allFinancials.filter((d) => d.fs_div === activeFsDiv)
+  // account_key 단위 폴백: preferred가 없는 계정은 반대 fs_div로 보완 + is_fallback 마킹
+  const financials = applyFsDivWithFallback(allFinancials, activeFsDiv)
 
   const { data: compareData = [], isLoading: compareLoading, error: compareError } =
     useCompareFinancials(
       isCompareMode ? selectedCompanies.map((c) => c.corp_code) : []
     )
+
+  const { data: valuationData, isLoading: valuationLoading } = useValuation(
+    detailCompany?.is_listed ? detailCorpCode : null
+  )
 
   const isDetailView = !isCompareMode || !!focusedCorpCode
   const activeError = isDetailView ? singleError : compareError
@@ -315,8 +338,16 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
-          <KPICard data={financials} isLoading={singleLoading} chartType={chartType} />
+          <KPICard
+            data={financials}
+            isLoading={singleLoading}
+            chartType={chartType}
+            valuationData={chartType === 'pl' ? (valuationData ?? null) : undefined}
+          />
           <FinancialChart data={financials} isLoading={singleLoading} companyName={detailCompany.company_name} type={chartType} />
+          {chartType === 'bs' && (
+            <PBRTrendChart data={valuationData} isLoading={valuationLoading} />
+          )}
           <FinancialTable data={financials} chartType={chartType} />
         </>
       ) : (

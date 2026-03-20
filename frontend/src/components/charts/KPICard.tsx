@@ -1,12 +1,14 @@
 'use client'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatKRW, formatPercent } from '@/lib/format'
+import type { ValuationData } from '@/lib/api'
 import type { FinancialStatement, FinancialType } from '@/types'
 
 interface Props {
   data: FinancialStatement[]
   isLoading: boolean
   chartType?: FinancialType
+  valuationData?: ValuationData | null
 }
 
 function calcYoY(current: number | null, prev: number | null): number | null {
@@ -14,11 +16,12 @@ function calcYoY(current: number | null, prev: number | null): number | null {
   return ((current - prev) / Math.abs(prev)) * 100
 }
 
-export function KPICard({ data, isLoading, chartType = 'pl' }: Props) {
+export function KPICard({ data, isLoading, chartType = 'pl', valuationData }: Props) {
   if (isLoading) {
+    const showPbr = chartType === 'pl' && valuationData !== undefined
     return (
-      <div className="grid grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
+      <div className={`grid ${showPbr ? 'grid-cols-5' : 'grid-cols-4'} gap-4`}>
+        {[...Array(showPbr ? 5 : 4)].map((_, i) => (
           <Skeleton key={i} className="h-28 rounded-xl" />
         ))}
       </div>
@@ -80,16 +83,20 @@ export function KPICard({ data, isLoading, chartType = 'pl' }: Props) {
     const prevOpProfit = get(prevYear, 'operating_profit')
     const prevNetIncome = get(prevYear, 'net_income')
 
+    const currentPbr = valuationData?.current_pbr ?? null
     cards = [
       { label: '매출', value: revenue != null ? formatKRW(revenue) : '-', yoy: calcYoY(revenue, prevRevenue) },
       { label: '영업이익', value: opProfit != null ? formatKRW(opProfit) : '-', yoy: calcYoY(opProfit, prevOpProfit) },
       { label: '순이익', value: netIncome != null ? formatKRW(netIncome) : '-', yoy: calcYoY(netIncome, prevNetIncome) },
       { label: '영업이익률', value: opMargin != null ? `${opMargin.toFixed(1)}%` : '-', yoy: null },
+      ...(valuationData !== undefined
+        ? [{ label: 'PBR', value: currentPbr != null ? `${currentPbr.toFixed(2)}x` : '-', yoy: null }]
+        : []),
     ]
   }
 
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className={`grid ${cards.length === 5 ? 'grid-cols-5' : 'grid-cols-4'} gap-4`}>
       {cards.map((card) => (
         <div
           key={card.label}
