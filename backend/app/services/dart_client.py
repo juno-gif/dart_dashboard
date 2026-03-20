@@ -82,6 +82,15 @@ def get_financial_statements(
         is_rows = _get_is_rows_from_finstate_all(dart, corp_code, bsns_year, reprt_code)
         rows.extend(is_rows)
 
+    # finstate()는 현금및현금성자산(기말)을 표준 계정으로 반환하지 않음 → finstate_all() CF에서 보완
+    _CASH_NMS = {"현금및현금성자산", "현금및현금성자산(기말)"}
+    has_cash = any(
+        str(r.get("account_nm", "")).replace(" ", "") in _CASH_NMS for r in rows
+    )
+    if not has_cash:
+        cash_rows = _get_cash_rows_from_finstate_all(dart, corp_code, bsns_year, reprt_code)
+        rows.extend(cash_rows)
+
     return rows
 
 
@@ -108,6 +117,38 @@ def _get_is_rows_from_finstate_all(
         logger.info(f"[DART] finstate_all IS 보완 corp={corp_code} year={bsns_year} fs={fs_div} rows={len(is_df)}")
         # finstate_all 응답에는 fs_div 컬럼이 없으므로 명시적으로 주입
         rows_list = is_df.to_dict("records")
+        for r in rows_list:
+            r["fs_div"] = fs_div
+        all_rows.extend(rows_list)
+    return all_rows
+
+
+def _get_cash_rows_from_finstate_all(
+    dart, corp_code: str, bsns_year: str, reprt_code: str
+) -> list[dict]:
+    """finstate_all()에서 현금및현금성자산(기말) 행만 추출 — cash_and_equivalents 누락 시 보완.
+    CFS/OFS 모두 수집해 반환.
+    """
+    _CASH_ACCT_NMS = {"현금및현금성자산", "현금및현금성자산(기말)"}
+    all_rows: list[dict] = []
+    for fs_div in ("CFS", "OFS"):
+        try:
+            df = dart.finstate_all(corp_code, bsns_year, reprt_code, fs_div=fs_div)
+        except Exception as e:
+            logger.warning(f"[DART] finstate_all cash 조회 실패 corp={corp_code} year={bsns_year} fs={fs_div}: {e}")
+            continue
+        if df is None or isinstance(df, dict) or not hasattr(df, "empty") or df.empty:
+            continue
+        if "sj_div" not in df.columns:
+            continue
+        cf_df = df[df["sj_div"].str.upper() == "CF"]
+        if cf_df.empty:
+            continue
+        cash_df = cf_df[cf_df["account_nm"].str.replace(" ", "").isin(_CASH_ACCT_NMS)]
+        if cash_df.empty:
+            continue
+        logger.info(f"[DART] finstate_all cash 보완 corp={corp_code} year={bsns_year} fs={fs_div} rows={len(cash_df)}")
+        rows_list = cash_df.to_dict("records")
         for r in rows_list:
             r["fs_div"] = fs_div
         all_rows.extend(rows_list)
