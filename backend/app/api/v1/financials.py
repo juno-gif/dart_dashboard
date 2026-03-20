@@ -12,7 +12,7 @@ from app.core.auth import get_current_user
 from app.models.schemas import FinancialStatement
 from app.services.financial_service import get_bs_data, get_cf_data, get_pl_data
 from app.services.valuation_service import get_valuation_data
-from app.db.supabase import get_supabase_client
+from app.core.database import get_supabase_client
 
 
 logger = logging.getLogger(__name__)
