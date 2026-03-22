@@ -38,6 +38,25 @@ def get_valuation_data(
 
         market_cap: float | None = getattr(fast, "market_cap", None)
         shares: float | None = getattr(fast, "shares", None)
+        last_price: float | None = getattr(fast, "last_price", None)
+
+        # fast_info 미지원 소형주 → info dict 폴백
+        info: dict = {}
+        try:
+            info = ticker.info or {}
+        except Exception:
+            pass
+
+        if not market_cap:
+            market_cap = _nz(info.get("marketCap")) or (
+                last_price * shares if last_price and shares else None
+            )
+        if not shares:
+            shares = _nz(info.get("sharesOutstanding")) or _nz(
+                info.get("impliedSharesOutstanding")
+            )
+            if not shares and market_cap and last_price and last_price > 0:
+                shares = market_cap / last_price
 
         # DB에 자본총계 없으면 yfinance balance_sheet로 폴백
         if not equity_by_year:
@@ -66,6 +85,7 @@ def get_valuation_data(
         _valuation_cache[cache_key] = (now, result)
         logger.info(
             f"[Valuation] 조회 완료 stock={stock_code} pbr={current_pbr} per={current_per} years={len(yearly)}"
+            f" | mktcap={market_cap} shares={shares}"
         )
         return result
 
@@ -145,6 +165,15 @@ def _equity_from_yfinance(ticker) -> dict:
         return result
     except Exception:
         return {}
+
+
+def _nz(val) -> float | None:
+    """None/0/음수 제거용."""
+    try:
+        v = float(val)
+        return v if v > 0 else None
+    except Exception:
+        return None
 
 
 def _safe_float(val) -> float | None:
