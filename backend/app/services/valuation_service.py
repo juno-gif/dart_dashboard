@@ -33,30 +33,8 @@ def get_valuation_data(
     try:
         import yfinance as yf
 
-        ticker = yf.Ticker(f"{stock_code}.KS")
-        fast = ticker.fast_info
-
-        market_cap: float | None = getattr(fast, "market_cap", None)
-        shares: float | None = getattr(fast, "shares", None)
-        last_price: float | None = getattr(fast, "last_price", None)
-
-        # fast_info 미지원 소형주 → info dict 폴백
-        info: dict = {}
-        try:
-            info = ticker.info or {}
-        except Exception:
-            pass
-
-        if not market_cap:
-            market_cap = _nz(info.get("marketCap")) or (
-                last_price * shares if last_price and shares else None
-            )
-        if not shares:
-            shares = _nz(info.get("sharesOutstanding")) or _nz(
-                info.get("impliedSharesOutstanding")
-            )
-            if not shares and market_cap and last_price and last_price > 0:
-                shares = market_cap / last_price
+        # KOSPI(.KS) 먼저, market_cap 없으면 KOSDAQ(.KQ) 재시도
+        ticker, market_cap, shares, last_price, info = _resolve_ticker(yf, stock_code)
 
         # DB에 자본총계 없으면 yfinance balance_sheet로 폴백
         if not equity_by_year:
@@ -138,6 +116,41 @@ def _compute_yearly(
     except Exception as e:
         logger.warning(f"[Valuation] yearly PBR/PER 계산 실패: {e}")
         return []
+
+
+def _resolve_ticker(yf, stock_code: str):
+    """KOSPI(.KS) 우선, market_cap 없으면 KOSDAQ(.KQ) 재시도."""
+    for suffix in (".KS", ".KQ"):
+        t = yf.Ticker(f"{stock_code}{suffix}")
+        fast = t.fast_info
+        mktcap = _nz(getattr(fast, "market_cap", None))
+        shares = _nz(getattr(fast, "shares", None))
+        last_price = _nz(getattr(fast, "last_price", None))
+
+        # fast_info 부족하면 info dict 보완
+        info: dict = {}
+        try:
+            info = t.info or {}
+        except Exception:
+            pass
+
+        if not mktcap:
+            mktcap = _nz(info.get("marketCap")) or (
+                last_price * shares if last_price and shares else None
+            )
+        if not shares:
+            shares = _nz(info.get("sharesOutstanding")) or _nz(
+                info.get("impliedSharesOutstanding")
+            )
+            if not shares and mktcap and last_price and last_price > 0:
+                shares = mktcap / last_price
+
+        if mktcap:  # 시가총액 확보 → 이 suffix 사용
+            return t, mktcap, shares, last_price, info
+
+    # 둘 다 실패 → KS 티커 반환 (PBR은 None이 됨)
+    t = yf.Ticker(f"{stock_code}.KS")
+    return t, None, None, None, {}
 
 
 def _equity_from_yfinance(ticker) -> dict:
