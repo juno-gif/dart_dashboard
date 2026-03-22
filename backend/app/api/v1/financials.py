@@ -140,21 +140,30 @@ def get_valuation(
         return {"current_pbr": None, "current_per": None, "yearly": []}
     stock_code = res.data["stock_code"]
 
-    # DB에서 연도별 자본총계 조회 (CFS 우선, 없으면 OFS)
-    eq_res = (
+    # DB에서 연도별 자본총계 + 순이익 조회 (CFS 우선, 없으면 OFS)
+    fs_res = (
         supabase.table("financial_statements")
-        .select("bsns_year, amount, fs_div")
+        .select("bsns_year, account_key, amount, fs_div")
         .eq("corp_code", corp_code)
-        .eq("account_key", "total_equity")
+        .in_("account_key", ["total_equity", "net_income"])
         .in_("fs_div", ["CFS", "OFS"])
         .order("bsns_year", desc=True)
-        .limit(years * 2)
+        .limit(years * 4)
         .execute()
     )
-    equity_by_year: dict[str, int] = {}
-    for r in eq_res.data or []:
-        yr = r["bsns_year"]
-        if yr not in equity_by_year or r["fs_div"] == "CFS":
-            equity_by_year[yr] = r["amount"]
 
-    return get_valuation_data(stock_code, equity_by_year=equity_by_year, years=years)
+    equity_by_year: dict[str, int] = {}
+    income_by_year: dict[str, int] = {}
+    for r in fs_res.data or []:
+        yr = r["bsns_year"]
+        key = r["account_key"]
+        target = equity_by_year if key == "total_equity" else income_by_year
+        if yr not in target or r["fs_div"] == "CFS":
+            target[yr] = r["amount"]
+
+    return get_valuation_data(
+        stock_code,
+        equity_by_year=equity_by_year,
+        income_by_year=income_by_year,
+        years=years,
+    )
