@@ -124,7 +124,8 @@ def get_valuation(
     years: int = 10,
     _: object = Depends(get_current_user),
 ):
-    """상장 기업 PBR/PER 조회 (pykrx, 1일 캐시)
+    """상장 기업 PBR/PER 조회 (yfinance + Supabase 자본총계, 1일 캐시)
+    - PBR = 시가총액 / 자본총계 (DB의 total_equity 활용)
     - 비상장사 또는 조회 실패 시 current_pbr/current_per=null, yearly=[]
     """
     supabase = get_supabase_client()
@@ -138,4 +139,22 @@ def get_valuation(
     if not res.data or not res.data.get("stock_code"):
         return {"current_pbr": None, "current_per": None, "yearly": []}
     stock_code = res.data["stock_code"]
-    return get_valuation_data(stock_code, years=years)
+
+    # DB에서 연도별 자본총계 조회 (CFS 우선, 없으면 OFS)
+    eq_res = (
+        supabase.table("financial_statements")
+        .select("bsns_year, amount, fs_div")
+        .eq("corp_code", corp_code)
+        .eq("account_key", "total_equity")
+        .in_("fs_div", ["CFS", "OFS"])
+        .order("bsns_year", desc=True)
+        .limit(years * 2)
+        .execute()
+    )
+    equity_by_year: dict[str, int] = {}
+    for r in eq_res.data or []:
+        yr = r["bsns_year"]
+        if yr not in equity_by_year or r["fs_div"] == "CFS":
+            equity_by_year[yr] = r["amount"]
+
+    return get_valuation_data(stock_code, equity_by_year=equity_by_year, years=years)

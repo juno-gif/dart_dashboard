@@ -1,7 +1,8 @@
 import time
 import logging
-import pandas as pd
 from datetime import datetime
+
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -10,9 +11,15 @@ _valuation_cache: dict[str, tuple[float, dict]] = {}
 _CACHE_TTL = 86400  # 1일
 
 
-def get_valuation_data(stock_code: str, years: int = 10) -> dict:
-    """yfinance로 연도별 PBR/PER 데이터 조회 (1일 캐시).
-    비상장 또는 조회 실패 시 빈 데이터 반환.
+def get_valuation_data(
+    stock_code: str,
+    equity_by_year: dict[str, int] | None = None,
+    years: int = 10,
+) -> dict:
+    """yfinance 시가총액 + DB 자본총계로 PBR 계산 (1일 캐시).
+
+    PBR = 시가총액 / 자본총계 — ticker.info["priceToBook"] 대신
+    fast_info.market_cap 을 사용해 한국 주식에서도 안정적으로 동작.
     """
     now = time.time()
     cache_key = f"{stock_code}:{years}"
@@ -25,63 +32,68 @@ def get_valuation_data(stock_code: str, years: int = 10) -> dict:
         import yfinance as yf
 
         ticker = yf.Ticker(f"{stock_code}.KS")
-        info = ticker.info
+        fast = ticker.fast_info
 
-        current_pbr = _safe_float(info.get("priceToBook"))
-        current_per = _safe_float(info.get("trailingPE"))
-        yearly = _yearly_pbr(ticker, years)
+        market_cap: float | None = getattr(fast, "market_cap", None)
+        shares: float | None = getattr(fast, "shares", None)
+
+        # ── 현재 PBR: 시가총액 / 최신 자본총계 ──────────────
+        current_pbr: float | None = None
+        if market_cap and equity_by_year:
+            latest_year = max(equity_by_year.keys())
+            equity = equity_by_year.get(latest_year)
+            if equity and equity > 0:
+                current_pbr = round(market_cap / equity, 2)
+
+        # ── 현재 PER: info dict 에서 취득 (실패해도 무시) ───
+        current_per: float | None = None
+        try:
+            info = ticker.info
+            current_per = _safe_float(info.get("trailingPE"))
+        except Exception:
+            pass
+
+        # ── 연도별 PBR: 연말 주가 × 발행주식수 / 연도 자본총계 ──
+        yearly = _compute_yearly(ticker, shares, equity_by_year or {}, years)
 
         result = {"current_pbr": current_pbr, "current_per": current_per, "yearly": yearly}
         _valuation_cache[cache_key] = (now, result)
-        logger.info(f"[Valuation] yfinance 조회 완료 stock={stock_code} pbr={current_pbr}")
+        logger.info(
+            f"[Valuation] 조회 완료 stock={stock_code} pbr={current_pbr} years={len(yearly)}"
+        )
         return result
 
     except Exception as e:
-        logger.warning(f"[Valuation] yfinance 조회 실패 stock={stock_code}: {e}")
+        logger.warning(f"[Valuation] 조회 실패 stock={stock_code}: {e}")
         return _empty()
 
 
-def _yearly_pbr(ticker, years: int) -> list:
+def _compute_yearly(
+    ticker, shares: float | None, equity_by_year: dict, years: int
+) -> list:
+    if not equity_by_year or not shares or shares <= 0:
+        return []
     try:
-        bs = ticker.balance_sheet
         hist = ticker.history(period="max", interval="1mo")
-        shares = getattr(ticker.fast_info, "shares", None)
-
-        if bs is None or bs.empty or hist.empty or not shares or shares <= 0:
-            return []
-
-        # Stockholders equity 행 탐색
-        equity_key = next(
-            (k for k in bs.index if "equity" in str(k).lower() and "total" in str(k).lower()),
-            None,
-        )
-        if equity_key is None:
-            equity_key = next(
-                (k for k in bs.index if "stockholder" in str(k).lower()),
-                None,
-            )
-        if equity_key is None:
+        if hist.empty:
             return []
 
         current_year = datetime.now().year
         start_year = current_year - years + 1
         yearly = []
 
-        for col in bs.columns:
-            year = pd.Timestamp(col).year
-            if year < start_year:
+        for yr_str, equity in equity_by_year.items():
+            yr = int(yr_str)
+            if yr < start_year or equity <= 0:
                 continue
-            equity = bs.loc[equity_key, col]
-            if pd.isna(equity) or equity <= 0:
-                continue
-            bvps = float(equity) / float(shares)
-            year_hist = hist[hist.index.year == year]
+            year_hist = hist[hist.index.year == yr]
             if year_hist.empty:
                 continue
             price = float(year_hist.iloc[-1]["Close"])
-            pbr = round(price / bvps, 2) if bvps > 0 else None
-            if pbr and pbr > 0:
-                yearly.append({"year": str(year), "pbr": pbr, "per": None})
+            mkt_cap = price * shares
+            pbr = round(mkt_cap / equity, 2)
+            if pbr > 0:
+                yearly.append({"year": yr_str, "pbr": pbr, "per": None})
 
         yearly.sort(key=lambda x: x["year"])
         return yearly
