@@ -158,7 +158,9 @@ def get_valuation(
         yr = r["bsns_year"]
         key = r["account_key"]
         target = equity_by_year if key == "total_equity" else income_by_year
-        if yr not in target or r["fs_div"] == "CFS":
+        # PBR/PER 기준: 별도(OFS) 우선 — 네이버·KRX와 동일 기준
+        # 연결 자본총계는 비지배지분 포함으로 PBR 왜곡 발생
+        if yr not in target or r["fs_div"] == "OFS":
             target[yr] = r["amount"]
 
     return get_valuation_data(
