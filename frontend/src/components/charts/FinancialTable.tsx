@@ -1,6 +1,7 @@
 'use client'
 
 import { formatYearLabel } from '@/lib/format'
+import type { ValuationData } from '@/lib/api'
 import type { FinancialStatement, FinancialType } from '@/types'
 
 const ACCOUNT_LABELS: Record<string, string> = {
@@ -34,9 +35,10 @@ interface Props {
   data: FinancialStatement[]
   chartType: FinancialType
   companies?: { corp_code: string; company_name: string }[]
+  valuationData?: ValuationData | null
 }
 
-export function FinancialTable({ data, chartType, companies }: Props) {
+export function FinancialTable({ data, chartType, companies, valuationData }: Props) {
   if (!data.length) return null
 
   const accountKeys = ACCOUNT_ORDER[chartType]
@@ -77,10 +79,23 @@ export function FinancialTable({ data, chartType, companies }: Props) {
   }
 
   // 단일 기업
+  const valByYear = chartType === 'bs' && valuationData
+    ? new Map(valuationData.yearly.map((v) => [v.year, v]))
+    : null
+
   return (
     <div className="mt-6">
       <h3 className="text-sm font-medium text-muted-foreground mb-2">데이터 테이블 (억원)</h3>
-      <TableGrid data={data} accountKeys={accountKeys} years={years} yearReprtMap={yearReprtMap} fallbackYears={fallbackYears} />
+      <TableGrid
+        data={data}
+        accountKeys={accountKeys}
+        years={years}
+        yearReprtMap={yearReprtMap}
+        fallbackYears={fallbackYears}
+        valByYear={valByYear}
+        currentPbr={chartType === 'bs' ? (valuationData?.current_pbr ?? null) : null}
+        currentPer={chartType === 'bs' ? (valuationData?.current_per ?? null) : null}
+      />
     </div>
   )
 }
@@ -91,12 +106,18 @@ function TableGrid({
   years,
   yearReprtMap,
   fallbackYears,
+  valByYear = null,
+  currentPbr = null,
+  currentPer = null,
 }: {
   data: FinancialStatement[]
   accountKeys: string[]
   years: string[]
   yearReprtMap: Map<string, string>
   fallbackYears: Set<string>
+  valByYear?: Map<string, { pbr: number; per: number | null }> | null
+  currentPbr?: number | null
+  currentPer?: number | null
 }) {
   // (account_key, bsns_year) → amount 맵
   const map = new Map<string, number>()
@@ -134,6 +155,36 @@ function TableGrid({
               })}
             </tr>
           ))}
+          {valByYear && (
+            <>
+              <tr className="border-t">
+                <td className="px-3 py-2 text-muted-foreground">PBR</td>
+                {years.map((y) => {
+                  const val = valByYear.get(y)
+                  const isLatest = y === years[years.length - 1]
+                  const pbr = isLatest && currentPbr != null ? currentPbr : val?.pbr
+                  return (
+                    <td key={y} className="px-3 py-2 text-right tabular-nums">
+                      {pbr != null ? `${pbr.toFixed(2)}x` : '-'}
+                    </td>
+                  )
+                })}
+              </tr>
+              <tr className="bg-muted/20">
+                <td className="px-3 py-2 text-muted-foreground">PER</td>
+                {years.map((y) => {
+                  const val = valByYear.get(y)
+                  const isLatest = y === years[years.length - 1]
+                  const per = isLatest && currentPer != null ? currentPer : val?.per
+                  return (
+                    <td key={y} className="px-3 py-2 text-right tabular-nums">
+                      {per != null ? `${per.toFixed(1)}x` : '-'}
+                    </td>
+                  )
+                })}
+              </tr>
+            </>
+          )}
         </tbody>
       </table>
     </div>

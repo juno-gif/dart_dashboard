@@ -348,7 +348,11 @@ export default function DashboardPage() {
           {chartType === 'bs' && (
             <PBRTrendChart data={valuationData} isLoading={valuationLoading} />
           )}
-          <FinancialTable data={financials} chartType={chartType} />
+          <FinancialTable
+            data={financials}
+            chartType={chartType}
+            valuationData={chartType === 'bs' ? (valuationData ?? null) : undefined}
+          />
         </>
       ) : (
         <p className="text-gray-400 text-center text-sm mt-16">
