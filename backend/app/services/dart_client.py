@@ -209,6 +209,24 @@ def _parse_amount(text: str) -> Optional[int]:
         return None
 
 
+def _is_standard_amount(cell: str) -> bool:
+    """표준 한국 금액 형식 여부 확인: 쉼표는 3자리마다 구분자로만 허용.
+    '4,6,17' (주석참조번호) 같은 비표준 쉼표 그룹을 금액으로 오인하는 것 방지.
+    표준 예: '47,172,900,043' → True
+    비표준 예: '4,6,17' (1,1,2자리 그룹) → False
+    소수점 예: '1,470.00' (환율) → False
+    """
+    clean = cell.strip()
+    if clean.startswith("(") and clean.endswith(")"):
+        clean = clean[1:-1]
+    if not re.fullmatch(r"[\d,]+", clean):
+        return False
+    parts = clean.split(",")
+    if not parts[0].isdigit() or not (1 <= len(parts[0]) <= 3):
+        return False
+    return all(p.isdigit() and len(p) == 3 for p in parts[1:])
+
+
 def _detect_unit_multiplier(soup: BeautifulSoup) -> int:
     """HTML 문서 전체에서 금액 단위(원/천원/백만원) 감지 후 배수 반환. 테이블별 감지의 폴백용."""
     text_normalized = re.sub(r"[\s\u3000\u00a0\u202f\u2009\u200b\t]+", "", soup.get_text())
@@ -350,6 +368,7 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
                 c for c in non_text
                 if "," in c
                 and len(c.replace(",", "").replace("(", "").replace(")", "").strip()) >= 4
+                and _is_standard_amount(c)
             ]
             amount = None
             for cell in (financial if financial else non_text):
