@@ -32,13 +32,16 @@ async def lifespan(app: FastAPI):
 
     scheduler = start_scheduler()
 
-    # DART OpenDartReader 웜업 — corp_codes 다운로드를 백그라운드에서 미리 수행
-    loop = asyncio.get_event_loop()
-    try:
-        await loop.run_in_executor(None, _get_dart)
-        logger.info("[STARTUP] DART 웜업 완료")
-    except Exception as e:
-        logger.warning(f"[STARTUP] DART 웜업 실패 (첫 검색이 느릴 수 있음): {e}")
+    # DART 웜업을 백그라운드 태스크로 실행 — yield 이전 블로킹 방지 (Render 헬스체크 타임아웃 해결)
+    async def _warmup():
+        loop = asyncio.get_event_loop()
+        try:
+            await loop.run_in_executor(None, _get_dart)
+            logger.info("[STARTUP] DART 웜업 완료")
+        except Exception as e:
+            logger.warning(f"[STARTUP] DART 웜업 실패 (첫 검색이 느릴 수 있음): {e}")
+
+    asyncio.create_task(_warmup())
 
     yield
     scheduler.shutdown(wait=False)
