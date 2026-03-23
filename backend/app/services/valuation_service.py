@@ -1,7 +1,15 @@
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+# L1: in-memory 캐시 (프로세스 내 빠른 접근)
+_valuation_cache: dict[str, tuple[float, dict]] = {}
+_CACHE_TTL = 86400  # 1일
 
 
 def _retry_on_rate_limit(max_retries: int = 2, delay: float = 10.0):
@@ -24,13 +32,39 @@ def _retry_on_rate_limit(max_retries: int = 2, delay: float = 10.0):
         return wrapper
     return decorator
 
-import pandas as pd
 
-logger = logging.getLogger(__name__)
+def _supabase_cache_get(stock_code: str) -> dict | None:
+    """Supabase valuation_cache에서 유효한 캐시 조회 (TTL 24h)."""
+    try:
+        from app.core.database import get_supabase_client
+        sb = get_supabase_client()
+        res = sb.table("valuation_cache").select("data, cached_at").eq("stock_code", stock_code).single().execute()
+        if not res.data:
+            return None
+        cached_at_str = res.data["cached_at"]
+        # UTC 기준 TTL 체크
+        cached_at = datetime.fromisoformat(cached_at_str.replace("Z", "+00:00"))
+        age = (datetime.now(timezone.utc) - cached_at).total_seconds()
+        if age < _CACHE_TTL:
+            return res.data["data"]
+        return None
+    except Exception as e:
+        logger.debug(f"[Valuation] Supabase 캐시 읽기 실패 stock={stock_code}: {e}")
+        return None
 
-# in-memory 캐시: stock_code -> (timestamp, data)
-_valuation_cache: dict[str, tuple[float, dict]] = {}
-_CACHE_TTL = 86400  # 1일
+
+def _supabase_cache_set(stock_code: str, data: dict) -> None:
+    """Supabase valuation_cache에 upsert."""
+    try:
+        from app.core.database import get_supabase_client
+        sb = get_supabase_client()
+        sb.table("valuation_cache").upsert({
+            "stock_code": stock_code,
+            "data": data,
+            "cached_at": datetime.now(timezone.utc).isoformat(),
+        }).execute()
+    except Exception as e:
+        logger.warning(f"[Valuation] Supabase 캐시 저장 실패 stock={stock_code}: {e}")
 
 
 def get_valuation_data(
@@ -39,30 +73,37 @@ def get_valuation_data(
     income_by_year: dict[str, int] | None = None,
     years: int = 10,
 ) -> dict:
-    """yfinance 시가총액 + DB 자본총계/순이익으로 PBR/PER 계산 (1일 캐시).
+    """PBR/PER 계산 — L1(memory) → L2(Supabase) → yfinance 순으로 조회.
 
-    PBR = 시가총액 / 자본총계
-    PER = 시가총액 / 순이익
-    DB에 데이터 없으면 yfinance balance_sheet 폴백.
+    PBR = 시가총액 / 별도 자본총계
+    PER = 시가총액 / 별도 순이익
     """
     now = time.time()
     cache_key = f"{stock_code}:{years}"
+
+    # L1: in-memory
     if cache_key in _valuation_cache:
         ts, data = _valuation_cache[cache_key]
         if now - ts < _CACHE_TTL:
             return data
 
+    # L2: Supabase 영구 캐시
+    cached = _supabase_cache_get(stock_code)
+    if cached is not None:
+        _valuation_cache[cache_key] = (now, cached)
+        logger.info(f"[Valuation] Supabase 캐시 히트 stock={stock_code}")
+        return cached
+
+    # L3: yfinance 실시간 조회
     try:
         import yfinance as yf
 
-        # KOSPI(.KS) 먼저, market_cap 없으면 KOSDAQ(.KQ) 재시도
         ticker, market_cap, shares, last_price, info = _resolve_ticker_with_retry(yf, stock_code)
 
-        # DB에 자본총계 없으면 yfinance balance_sheet로 폴백
         if not equity_by_year:
             equity_by_year = _equity_from_yfinance(ticker)
 
-        # ── 현재 PBR: 시가총액 / 최신 자본총계 ──────────────
+        # 현재 PBR
         current_pbr: float | None = None
         if market_cap and equity_by_year:
             latest_year = max(equity_by_year.keys())
@@ -70,7 +111,7 @@ def get_valuation_data(
             if equity and equity > 0:
                 current_pbr = round(market_cap / equity, 2)
 
-        # ── 현재 PER: 시가총액 / 최신 순이익 ────────────────
+        # 현재 PER
         current_per: float | None = None
         if market_cap and income_by_year:
             latest_year = max(income_by_year.keys())
@@ -78,14 +119,17 @@ def get_valuation_data(
             if net_income and net_income > 0:
                 current_per = round(market_cap / net_income, 2)
 
-        # ── 연도별 PBR/PER ───────────────────────────────────
         yearly = _compute_yearly(ticker, shares, equity_by_year or {}, income_by_year or {}, years)
 
         result = {"current_pbr": current_pbr, "current_per": current_per, "yearly": yearly}
+
+        # L1 + L2 저장
         _valuation_cache[cache_key] = (now, result)
+        _supabase_cache_set(stock_code, result)
+
         logger.info(
-            f"[Valuation] 조회 완료 stock={stock_code} pbr={current_pbr} per={current_per} years={len(yearly)}"
-            f" | mktcap={market_cap} shares={shares}"
+            f"[Valuation] yfinance 조회 완료 stock={stock_code} pbr={current_pbr} per={current_per}"
+            f" years={len(yearly)} | mktcap={market_cap} shares={shares}"
         )
         return result
 
@@ -123,7 +167,6 @@ def _compute_yearly(
             mkt_cap = price * shares
 
             pbr = round(mkt_cap / equity, 2) if equity > 0 else None
-
             net_income = income_by_year.get(yr_str)
             per: float | None = None
             if net_income and net_income > 0:
@@ -149,14 +192,13 @@ def _resolve_ticker(yf, stock_code: str):
     """KOSPI(.KS) 우선, market_cap 없으면 KOSDAQ(.KQ) 재시도."""
     for i, suffix in enumerate((".KS", ".KQ")):
         if i > 0:
-            time.sleep(1.0)  # burst 방지
+            time.sleep(1.0)
         t = yf.Ticker(f"{stock_code}{suffix}")
         fast = t.fast_info
         mktcap = _nz(getattr(fast, "market_cap", None))
         shares = _nz(getattr(fast, "shares", None))
         last_price = _nz(getattr(fast, "last_price", None))
 
-        # fast_info 부족하면 info dict 보완
         info: dict = {}
         try:
             info = t.info or {}
@@ -174,10 +216,9 @@ def _resolve_ticker(yf, stock_code: str):
             if not shares and mktcap and last_price and last_price > 0:
                 shares = mktcap / last_price
 
-        if mktcap:  # 시가총액 확보 → 이 suffix 사용
+        if mktcap:
             return t, mktcap, shares, last_price, info
 
-    # 둘 다 실패 → KS 티커 반환 (PBR은 None이 됨)
     t = yf.Ticker(f"{stock_code}.KS")
     return t, None, None, None, {}
 
@@ -210,15 +251,6 @@ def _equity_from_yfinance(ticker) -> dict:
 
 
 def _nz(val) -> float | None:
-    """None/0/음수 제거용."""
-    try:
-        v = float(val)
-        return v if v > 0 else None
-    except Exception:
-        return None
-
-
-def _safe_float(val) -> float | None:
     try:
         v = float(val)
         return v if v > 0 else None
