@@ -514,6 +514,24 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
             )
 
         if upsert_data:
+            # 자산총계 누락 시 자본총계 + 부채총계로 파생 계산 (BS 좌우 양식 감사보고서 대응)
+            for fs_div_val in ("OFS", "CFS"):
+                has_assets = any(d["account_key"] == "total_assets" and d["fs_div"] == fs_div_val for d in upsert_data)
+                if not has_assets:
+                    equity = next((d["amount"] for d in upsert_data if d["account_key"] == "total_equity" and d["fs_div"] == fs_div_val and d["amount"]), None)
+                    liabilities = next((d["amount"] for d in upsert_data if d["account_key"] == "total_liabilities" and d["fs_div"] == fs_div_val and d["amount"]), None)
+                    if equity is not None and liabilities is not None:
+                        reprt = next((d["reprt_code"] for d in upsert_data if d["fs_div"] == fs_div_val), "11011")
+                        upsert_data.append({
+                            "corp_code": corp_code,
+                            "bsns_year": bsns_year,
+                            "reprt_code": reprt,
+                            "fs_div": fs_div_val,
+                            "account_key": "total_assets",
+                            "account_nm": "자산총계(파생)",
+                            "amount": equity + liabilities,
+                        })
+
             # 감사보고서 HTML 파싱 시 동일 account_key가 여러 테이블에서 중복 추출될 수 있음
             # UPSERT 배치 내 중복 → "ON CONFLICT DO UPDATE command cannot affect row a second time" 오류 방지
             seen_keys: set = set()
