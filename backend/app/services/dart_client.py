@@ -360,6 +360,16 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
             if amount is None:
                 continue
 
+            # 현금 관련 계정은 디버그 로그 출력 (잘못된 셀/단위 감지 디버그용)
+            acct_norm = account_nm.replace(" ", "")
+            if "현금" in acct_norm or "cash" in acct_norm.lower():
+                logger.warning(
+                    f"[DART-CASH-DEBUG] corp={corp_code} year={bsns_year}"
+                    f" account={account_nm!r} cells={cells}"
+                    f" non_text={non_text} financial={financial}"
+                    f" amount_raw={amount} multiplier={multiplier} → stored={amount * multiplier}"
+                )
+
             results.append(
                 {
                     "account_nm": account_nm,
