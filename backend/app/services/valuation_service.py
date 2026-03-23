@@ -38,7 +38,7 @@ def _supabase_cache_get(stock_code: str) -> dict | None:
     try:
         from app.core.database import get_supabase_client
         sb = get_supabase_client()
-        res = sb.table("valuation_cache").select("data, cached_at").eq("stock_code", stock_code).single().execute()
+        res = sb.table("valuation_cache").select("data, cached_at").eq("stock_code", stock_code).maybe_single().execute()
         if not res.data:
             return None
         cached_at_str = res.data["cached_at"]
