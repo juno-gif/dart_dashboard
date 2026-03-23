@@ -144,10 +144,13 @@ def _get_cash_rows_from_finstate_all(
         cf_df = df[df["sj_div"].str.upper() == "CF"]
         if cf_df.empty:
             continue
-        # 기말 현금 계정 추출: "현금및현금성자산" 포함 + 기초/증가/감소 제외
+        # 기말 현금 계정 추출: "현금및현금성자산" 또는 "기말의현금" 포함 + 기초/증가/감소 제외
         nm = cf_df["account_nm"].str.replace(" ", "", regex=False)
         cash_df = cf_df[
-            nm.str.contains("현금및현금성자산", na=False)
+            (
+                nm.str.contains("현금및현금성자산", na=False)
+                | nm.str.contains("기말의현금", na=False)
+            )
             & ~nm.str.contains("기초", na=False)
             & ~nm.str.contains("증가|감소", na=False, regex=True)
         ]
@@ -373,6 +376,8 @@ _BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
     "기말의 현금및현금성자산": "cash_and_equivalents",
     "현금및현금성자산의기말잔액": "cash_and_equivalents",
     "현금및현금성자산기말잔액": "cash_and_equivalents",
+    "기말의현금": "cash_and_equivalents",
+    "기말의현금및현금성자산등": "cash_and_equivalents",
     "영업활동으로인한현금흐름": "operating_cf",
     "영업활동현금흐름": "operating_cf",
     "투자활동으로인한현금흐름": "investing_cf",
