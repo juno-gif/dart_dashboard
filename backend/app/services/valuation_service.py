@@ -1,6 +1,28 @@
 import time
 import logging
 from datetime import datetime
+from functools import wraps
+
+
+def _retry_on_rate_limit(max_retries: int = 2, delay: float = 10.0):
+    """Yahoo Finance rate limit(429) 시 delay 후 재시도."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt < max_retries and (
+                        "Too Many Requests" in str(e) or "Rate" in str(e) or "429" in str(e)
+                    ):
+                        wait = delay * (attempt + 1)
+                        logger.warning(f"[Valuation] rate limit, {wait}s 후 재시도 (attempt {attempt+1})")
+                        time.sleep(wait)
+                        continue
+                    raise
+        return wrapper
+    return decorator
 
 import pandas as pd
 
@@ -34,7 +56,7 @@ def get_valuation_data(
         import yfinance as yf
 
         # KOSPI(.KS) 먼저, market_cap 없으면 KOSDAQ(.KQ) 재시도
-        ticker, market_cap, shares, last_price, info = _resolve_ticker(yf, stock_code)
+        ticker, market_cap, shares, last_price, info = _resolve_ticker_with_retry(yf, stock_code)
 
         # DB에 자본총계 없으면 yfinance balance_sheet로 폴백
         if not equity_by_year:
@@ -118,9 +140,16 @@ def _compute_yearly(
         return []
 
 
+@_retry_on_rate_limit(max_retries=2, delay=10.0)
+def _resolve_ticker_with_retry(yf, stock_code: str):
+    return _resolve_ticker(yf, stock_code)
+
+
 def _resolve_ticker(yf, stock_code: str):
     """KOSPI(.KS) 우선, market_cap 없으면 KOSDAQ(.KQ) 재시도."""
-    for suffix in (".KS", ".KQ"):
+    for i, suffix in enumerate((".KS", ".KQ")):
+        if i > 0:
+            time.sleep(1.0)  # burst 방지
         t = yf.Ticker(f"{stock_code}{suffix}")
         fast = t.fast_info
         mktcap = _nz(getattr(fast, "market_cap", None))
