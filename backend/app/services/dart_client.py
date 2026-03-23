@@ -489,7 +489,8 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
         for row in rows:
             account_nm: str = row.get("account_nm", "") or ""
             # 글자 사이 공백 포함된 계정명도 매핑 가능하도록 정규화하여 조회
-            account_nm_normalized = account_nm.replace(" ", "").replace("\u3000", "")
+            # \s·\u3000·\u00a0 등 모든 유니코드 공백 제거 (DART 감사보고서의 비표준 공백 대응)
+            account_nm_normalized = re.sub(r"[\s\u3000\u00a0\u202f\u2009\u200b\u2003\u2002]+", "", account_nm)
             # 로마자/아라비아숫자 접두사 제거 (예: "I.영업수익" → "영업수익", "Ⅰ.영업수익" → "영업수익", "1.매출액" → "매출액")
             # \u2160-\u217F: 유니코드 로마자 (Ⅰ Ⅱ Ⅲ ... DART에서 실제 사용하는 전각 로마자)
             account_nm_no_prefix = re.sub(r"^[IVXLCDMivxlcdm\u2160-\u217F\d]+\.", "", account_nm_normalized)
