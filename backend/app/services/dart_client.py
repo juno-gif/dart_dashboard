@@ -75,8 +75,11 @@ def get_financial_statements(
 
     # finstate()가 IS 매출 계정을 누락하는 경우(영업수익 등 CIS 형식 기업) → finstate_all()로 보완
     _REVENUE_NMS = {"매출액", "영업수익", "수익(매출액)", "매출"}
+    def _norm_nm(nm: str) -> str:
+        s = nm.replace(" ", "").replace("\u3000", "")
+        return re.sub(r"^[IVXLCDMivxlcdm\u2160-\u217F\d]+\.", "", s)
     has_revenue = any(
-        str(r.get("account_nm", "")).replace(" ", "") in _REVENUE_NMS for r in rows
+        _norm_nm(str(r.get("account_nm", ""))) in _REVENUE_NMS for r in rows
     )
     if not has_revenue:
         is_rows = _get_is_rows_from_finstate_all(dart, corp_code, bsns_year, reprt_code)
@@ -440,8 +443,9 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
             account_nm: str = row.get("account_nm", "") or ""
             # 글자 사이 공백 포함된 계정명도 매핑 가능하도록 정규화하여 조회
             account_nm_normalized = account_nm.replace(" ", "").replace("\u3000", "")
-            # 로마자/아라비아숫자 접두사 제거 (예: "I.영업수익" → "영업수익", "1.매출액" → "매출액")
-            account_nm_no_prefix = re.sub(r"^[IVXLCDMivxlcdm\d]+\.", "", account_nm_normalized)
+            # 로마자/아라비아숫자 접두사 제거 (예: "I.영업수익" → "영업수익", "Ⅰ.영업수익" → "영업수익", "1.매출액" → "매출액")
+            # \u2160-\u217F: 유니코드 로마자 (Ⅰ Ⅱ Ⅲ ... DART에서 실제 사용하는 전각 로마자)
+            account_nm_no_prefix = re.sub(r"^[IVXLCDMivxlcdm\u2160-\u217F\d]+\.", "", account_nm_normalized)
             account_key = (
                 mappings.get(account_nm)
                 or mappings.get(account_nm_normalized)
