@@ -210,23 +210,45 @@ def _parse_amount(text: str) -> Optional[int]:
 
 
 def _detect_unit_multiplier(soup: BeautifulSoup) -> int:
-    """HTML에서 금액 단위(원/천원/백만원) 감지 후 배수 반환.
-    '단위:원' 명시를 가장 먼저 확인 — 주석 등에 '백만원'이 언급돼도 오탐 방지.
-    """
+    """HTML 문서 전체에서 금액 단위(원/천원/백만원) 감지 후 배수 반환. 테이블별 감지의 폴백용."""
     text_normalized = re.sub(r"[\s\u3000\u00a0\u202f\u2009\u200b\t]+", "", soup.get_text())
-    # 명시적 단위 표기를 최우선으로 확인 (예: "(단위: 원)", "(단위 : 백만원)")
-    if "단위:원" in text_normalized:
-        return 1
-    if "단위:백만원" in text_normalized:
-        return 1_000_000
     if "단위:천원" in text_normalized:
         return 1_000
-    # 명시 없을 때 폴백: 문서 내 단위 키워드 탐색
+    if "단위:백만원" in text_normalized:
+        return 1_000_000
+    if "단위:원" in text_normalized:
+        return 1
     if "백만원" in text_normalized:
         return 1_000_000
     if "천원" in text_normalized:
         return 1_000
     return 1  # 기본값: 원
+
+
+def _detect_table_unit(table, global_multiplier: int) -> int:
+    """테이블별 단위 감지 — 테이블 caption/헤더행 우선, 없으면 global_multiplier 사용.
+    동일 문서 내 IS(원)·BS(천원) 혼용 감사보고서 대응.
+    """
+    # 테이블 직전 형제 요소 (p, div 등)에서 단위 탐색
+    prev = table.find_previous_sibling()
+    context_text = ""
+    if prev:
+        context_text += prev.get_text()
+    caption = table.find("caption")
+    if caption:
+        context_text += caption.get_text()
+    # 첫 3개 행 헤더에서도 탐색
+    for tr in table.find_all("tr")[:3]:
+        context_text += tr.get_text()
+
+    t = re.sub(r"[\s\u3000\u00a0]+", "", context_text)
+    if "단위:천원" in t:
+        return 1_000
+    if "단위:백만원" in t:
+        return 1_000_000
+    if "단위:원" in t:
+        return 1
+    return global_multiplier
 
 
 def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dict]:
@@ -305,10 +327,11 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
         logger.warning(f"[DART] 감사보고서 HTML 다운로드 실패 url={target_url}: {e}")
         return []
 
-    multiplier = _detect_unit_multiplier(soup)
+    global_multiplier = _detect_unit_multiplier(soup)
     results = []
 
     for table in soup.find_all("table"):
+        multiplier = _detect_table_unit(table, global_multiplier)
         for tr in table.find_all("tr"):
             cells = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
             if len(cells) < 2:
