@@ -502,7 +502,7 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
                 or mappings.get(account_nm_no_note)
             )
             if account_key is None:
-                account_key = account_nm  # 원본명 그대로
+                account_key = account_nm[:200]  # 원본명 그대로 (DB 컬럼 길이 초과 방지)
                 logger.warning(f"Unmapped account: '{account_nm}' for {corp_code}/{bsns_year}")
 
             # 분기/반기 보고서의 IS·CF 계정은 누적(YTD) 금액 사용
