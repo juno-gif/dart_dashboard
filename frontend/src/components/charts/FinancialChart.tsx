@@ -12,7 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatKRW, formatYearLabel } from '@/lib/format'
+import { formatKRW, formatYearLabel, getRevenueLabel } from '@/lib/format'
 import { DownloadButton } from '@/components/charts/DownloadButton'
 import type { FinancialStatement, FinancialType } from '@/types'
 
@@ -20,8 +20,7 @@ const PL_KEYS = ['revenue', 'operating_profit', 'net_income'] as const
 const BS_KEYS = ['total_assets', 'total_liabilities', 'total_equity', 'cash_and_equivalents'] as const
 const CF_KEYS = ['operating_cf', 'investing_cf', 'financing_cf'] as const
 
-const PL_LABELS: Record<string, string> = {
-  revenue: '매출',
+const PL_LABELS_BASE: Record<string, string> = {
   operating_profit: '영업이익',
   net_income: '순이익',
 }
@@ -56,6 +55,8 @@ export function FinancialChart({ data, isLoading, companyName, type = 'pl' }: Pr
   const isBs = type === 'bs'
   const isCf = type === 'cf'
   const keys = isBs ? BS_KEYS : isCf ? CF_KEYS : PL_KEYS
+  const revenueLabel = getRevenueLabel(data.find((d) => d.account_key === 'revenue')?.account_nm)
+  const PL_LABELS = { ...PL_LABELS_BASE, revenue: revenueLabel }
   const labels = isBs ? BS_LABELS : isCf ? CF_LABELS : PL_LABELS
 
   const years = [...new Set(data.map((d) => d.bsns_year))].sort()
@@ -112,7 +113,7 @@ export function FinancialChart({ data, isLoading, companyName, type = 'pl' }: Pr
               width={80}
               tick={{ fontSize: 11 }}
             />
-            {!isBs && !isCf && (
+            {!isBs && !isCf && chartData.some((d) => (d.revenue as number) !== 0) && (
               <YAxis
                 yAxisId="right"
                 orientation="right"
@@ -141,13 +142,18 @@ export function FinancialChart({ data, isLoading, companyName, type = 'pl' }: Pr
                 <Line yAxisId="left" dataKey="total_equity" name="total_equity" stroke="#de0000" strokeWidth={2} dot />
                 <Line yAxisId="left" dataKey="cash_and_equivalents" name="cash_and_equivalents" stroke="#3b82f6" strokeWidth={2} dot />
               </>
-            ) : (
-              <>
-                <Bar yAxisId="left" dataKey="revenue" name="revenue" fill="#9e9e9e" opacity={0.85} />
-                <Line yAxisId="right" dataKey="operating_profit" name="operating_profit" stroke="#de0000" strokeWidth={2} dot />
-                <Line yAxisId="right" dataKey="net_income" name="net_income" stroke="#3b82f6" strokeWidth={2} dot />
-              </>
-            )}
+            ) : (() => {
+              const hasRevenue = chartData.some((d) => (d.revenue as number) !== 0)
+              return (
+                <>
+                  {hasRevenue && (
+                    <Bar yAxisId="left" dataKey="revenue" name="revenue" fill="#9e9e9e" opacity={0.85} />
+                  )}
+                  <Line yAxisId={hasRevenue ? 'right' : 'left'} dataKey="operating_profit" name="operating_profit" stroke="#de0000" strokeWidth={2} dot />
+                  <Line yAxisId={hasRevenue ? 'right' : 'left'} dataKey="net_income" name="net_income" stroke="#3b82f6" strokeWidth={2} dot />
+                </>
+              )
+            })()}
           </ComposedChart>
         </ResponsiveContainer>
       </div>

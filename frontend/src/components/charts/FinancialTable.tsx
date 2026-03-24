@@ -1,6 +1,6 @@
 'use client'
 
-import { formatYearLabel } from '@/lib/format'
+import { formatYearLabel, getRevenueLabel } from '@/lib/format'
 import type { ValuationData } from '@/lib/api'
 import type { FinancialStatement, FinancialType } from '@/types'
 
@@ -67,10 +67,11 @@ export function FinancialTable({ data, chartType, companies, valuationData }: Pr
           const companyData = data.filter((d) => d.corp_code === company.corp_code)
           if (!companyData.length) return null
           const companyFallbackYears = new Set(companyData.filter((d) => d.is_fallback).map((d) => d.bsns_year))
+          const revenueLabel = getRevenueLabel(companyData.find((d) => d.account_key === 'revenue')?.account_nm)
           return (
             <div key={company.corp_code}>
               <p className="text-xs font-semibold mb-1">{company.company_name}</p>
-              <TableGrid data={companyData} accountKeys={accountKeys} years={years} yearReprtMap={yearReprtMap} fallbackYears={companyFallbackYears} />
+              <TableGrid data={companyData} accountKeys={accountKeys} years={years} yearReprtMap={yearReprtMap} fallbackYears={companyFallbackYears} revenueLabel={revenueLabel} />
             </div>
           )
         })}
@@ -82,6 +83,7 @@ export function FinancialTable({ data, chartType, companies, valuationData }: Pr
   const valByYear = chartType === 'bs' && valuationData
     ? new Map(valuationData.yearly.map((v) => [v.year, v]))
     : null
+  const revenueLabel = getRevenueLabel(data.find((d) => d.account_key === 'revenue')?.account_nm)
 
   return (
     <div className="mt-6">
@@ -91,6 +93,7 @@ export function FinancialTable({ data, chartType, companies, valuationData }: Pr
         accountKeys={accountKeys}
         years={years}
         yearReprtMap={yearReprtMap}
+        revenueLabel={revenueLabel}
         fallbackYears={fallbackYears}
         valByYear={valByYear}
         currentPbr={chartType === 'bs' ? (valuationData?.current_pbr ?? null) : null}
@@ -106,6 +109,7 @@ function TableGrid({
   years,
   yearReprtMap,
   fallbackYears,
+  revenueLabel = '매출',
   valByYear = null,
   currentPbr = null,
   currentPer = null,
@@ -115,6 +119,7 @@ function TableGrid({
   years: string[]
   yearReprtMap: Map<string, string>
   fallbackYears: Set<string>
+  revenueLabel?: string
   valByYear?: Map<string, { pbr: number; per: number | null }> | null
   currentPbr?: number | null
   currentPer?: number | null
@@ -144,7 +149,7 @@ function TableGrid({
         <tbody>
           {accountKeys.map((key, i) => (
             <tr key={key} className={i % 2 === 0 ? '' : 'bg-muted/20'}>
-              <td className="px-3 py-2 text-muted-foreground">{ACCOUNT_LABELS[key] ?? key}</td>
+              <td className="px-3 py-2 text-muted-foreground">{key === 'revenue' ? revenueLabel : (ACCOUNT_LABELS[key] ?? key)}</td>
               {years.map((y) => {
                 const amount = map.get(`${key}__${y}`)
                 return (

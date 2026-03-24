@@ -38,6 +38,18 @@ export function formatYearLabel(year: string, reprtCode: string): string {
   return suffix ? `${year}${suffix}` : year
 }
 
+/**
+ * revenue account_nm → 화면 레이블 변환
+ * 표준 매출 계정명은 "매출"로 통일, 금융업 특수 계정(영업수익, 이자수익 등)은 원본 그대로 표시
+ */
+const STANDARD_REVENUE_NMS = new Set(['매출', '매출액', '수익(매출액)'])
+
+export function getRevenueLabel(accountNm: string | null | undefined): string {
+  if (!accountNm) return '매출'
+  const normalized = accountNm.replace(/\s+/g, '')
+  return STANDARD_REVENUE_NMS.has(normalized) ? '매출' : normalized
+}
+
 export function formatDate(isoString: string): string {
   const date = new Date(isoString)
   return date.toLocaleDateString('ko-KR', {

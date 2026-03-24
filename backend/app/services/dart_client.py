@@ -74,7 +74,7 @@ def get_financial_statements(
         rows.extend(cf_rows)
 
     # finstate()가 IS 매출 계정을 누락하는 경우(영업수익 등 CIS 형식 기업) → finstate_all()로 보완
-    _REVENUE_NMS = {"매출액", "영업수익", "수익(매출액)", "매출"}
+    _REVENUE_NMS = {"매출액", "영업수익", "수익(매출액)", "매출", "이자수익"}
     def _norm_nm(nm: str) -> str:
         s = nm.replace(" ", "").replace("\u3000", "")
         return re.sub(r"^[IVXLCDMivxlcdm\u2160-\u217F\d]+\.", "", s)
@@ -401,6 +401,7 @@ _BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
     "수익(매출액)": "revenue",
     "영업수익": "revenue",
     "매출": "revenue",
+    "이자수익": "revenue",  # 은행업 (토스뱅크 등)
     "영업이익": "operating_profit",
     "영업이익(손실)": "operating_profit",
     "영업손실": "operating_profit",

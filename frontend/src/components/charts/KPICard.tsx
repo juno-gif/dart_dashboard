@@ -1,6 +1,6 @@
 'use client'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatKRW, formatPercent } from '@/lib/format'
+import { formatKRW, formatPercent, getRevenueLabel } from '@/lib/format'
 import type { ValuationData } from '@/lib/api'
 import type { FinancialStatement, FinancialType } from '@/types'
 
@@ -84,8 +84,9 @@ export function KPICard({ data, isLoading, chartType = 'pl', valuationData }: Pr
     const prevNetIncome = get(prevYear, 'net_income')
 
     const currentPbr = valuationData?.current_pbr ?? null
+    const revenueLabel = getRevenueLabel(data.find((d) => d.account_key === 'revenue')?.account_nm)
     cards = [
-      { label: '매출', value: revenue != null ? formatKRW(revenue) : '-', yoy: calcYoY(revenue, prevRevenue) },
+      { label: revenueLabel, value: revenue != null ? formatKRW(revenue) : '-', yoy: calcYoY(revenue, prevRevenue) },
       { label: '영업이익', value: opProfit != null ? formatKRW(opProfit) : '-', yoy: calcYoY(opProfit, prevOpProfit) },
       { label: '순이익', value: netIncome != null ? formatKRW(netIncome) : '-', yoy: calcYoY(netIncome, prevNetIncome) },
       { label: '영업이익률', value: opMargin != null ? `${opMargin.toFixed(1)}%` : '-', yoy: null },
