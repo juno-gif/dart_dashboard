@@ -367,9 +367,15 @@ export default function DashboardPage() {
           </div>
         </>
       ) : (
-        <p className="text-gray-400 text-center text-sm mt-16">
-          기업을 검색하여 추가하세요.
-        </p>
+        <div className="mt-12 rounded-lg border bg-muted/40 p-5 space-y-2 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">💡 사용 Tip</p>
+          <ul className="space-y-1.5 list-disc list-inside">
+            <li>DART Open API 및 감사보고서 파싱을 통해 수집된 데이터입니다. DART에 보고서가 등록된 기업만 조회 가능합니다.</li>
+            <li>처음 검색된 기업은 데이터 수집에 다소 시간이 소요됩니다. (1분 내외)</li>
+            <li>PBR/PER은 상장기업에 한해 제공됩니다.</li>
+            <li>감사보고서만 제출하는 비상장사는 일부 데이터가 누락되거나 부정확할 수 있습니다. 오류 발견 시 제보해 주시면 반영하겠습니다.</li>
+          </ul>
+        </div>
       )}
 
       {/* 비상장사 재무 데이터 편집 다이얼로그 */}
