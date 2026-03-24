@@ -20,10 +20,10 @@ const PL_KEYS = ['revenue', 'operating_profit', 'net_income'] as const
 const BS_KEYS = ['total_assets', 'total_liabilities', 'total_equity', 'cash_and_equivalents'] as const
 const CF_KEYS = ['operating_cf', 'investing_cf', 'financing_cf'] as const
 
-const PL_LABELS_BASE: Record<string, string> = {
+const PL_LABELS_BASE = {
   operating_profit: '영업이익',
   net_income: '순이익',
-}
+} satisfies Record<string, string>
 const BS_LABELS: Record<string, string> = {
   total_assets: '총자산',
   total_liabilities: '총부채',
@@ -56,8 +56,8 @@ export function FinancialChart({ data, isLoading, companyName, type = 'pl' }: Pr
   const isCf = type === 'cf'
   const keys = isBs ? BS_KEYS : isCf ? CF_KEYS : PL_KEYS
   const revenueLabel = getRevenueLabel(data.find((d) => d.account_key === 'revenue')?.account_nm)
-  const PL_LABELS = { ...PL_LABELS_BASE, revenue: revenueLabel }
-  const labels = isBs ? BS_LABELS : isCf ? CF_LABELS : PL_LABELS
+  const PL_LABELS: Record<string, string> = { ...PL_LABELS_BASE, revenue: revenueLabel }
+  const labels: Record<string, string> = isBs ? BS_LABELS : isCf ? CF_LABELS : PL_LABELS
 
   const years = [...new Set(data.map((d) => d.bsns_year))].sort()
 
