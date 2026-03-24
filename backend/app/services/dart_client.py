@@ -459,6 +459,20 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
     except Exception:
         audit_only = False
 
+    # audit_only=True 기업도 최신 연도에 한해 finstate 탐색 — 사업보고서로 전환한 기업 자동 감지
+    if audit_only:
+        probe_year = str(current_year)
+        for reprt_code in _REPRT_CODES:
+            probe_rows = get_financial_statements(corp_code, probe_year, reprt_code)
+            if probe_rows:
+                audit_only = False
+                try:
+                    supabase.table("companies").update({"audit_only": False}).eq("corp_code", corp_code).execute()
+                    logger.info(f"[DART] audit_only 자동 해제 corp={corp_code} (사업보고서 발견 year={probe_year})")
+                except Exception as e:
+                    logger.warning(f"[DART] audit_only 해제 실패 corp={corp_code}: {e}")
+                break
+
     for year_offset in range(years):
         bsns_year = str(current_year - year_offset)
 
