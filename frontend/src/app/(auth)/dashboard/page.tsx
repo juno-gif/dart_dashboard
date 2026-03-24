@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CompanySearchInput } from '@/components/search/CompanySearchInput'
 import { FinancialChart } from '@/components/charts/FinancialChart'
@@ -19,6 +19,7 @@ import type { Company, FinancialStatement, FinancialType } from '@/types'
 import { ManualEntryDialog } from '@/components/search/ManualEntryDialog'
 import { FinancialTable } from '@/components/charts/FinancialTable'
 import { PBRTrendChart } from '@/components/charts/PBRTrendChart'
+import { ErrorReportButton } from '@/components/layout/ErrorReportButton'
 
 const MAX_COMPANIES = 5
 
@@ -43,6 +44,7 @@ export default function DashboardPage() {
   const [editingSet, setEditingSet] = useState<AnalysisSetData | null>(null)
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
   const [editingCorpCode, setEditingCorpCode] = useState<string | null>(null)
+  const chartContainerRef = useRef<HTMLDivElement>(null)
 
   // 서버 웨이크업 체크 (Render 무료 플랜은 슬립 후 첫 요청에 30~60초 소요)
   // 같은 탭 세션 내 새로고침 시 헬스체크 스피너 재표시 방지
@@ -337,22 +339,32 @@ export default function DashboardPage() {
                 ))}
               </div>
             )}
+            <div className="ml-auto">
+              <ErrorReportButton
+                companyName={detailCompany.company_name}
+                chartContainerRef={chartContainerRef}
+                chartType={chartType}
+                setChartType={setChartType}
+              />
+            </div>
           </div>
-          <KPICard
-            data={financials}
-            isLoading={singleLoading}
-            chartType={chartType}
-            valuationData={chartType === 'pl' ? (valuationData ?? null) : undefined}
-          />
-          <FinancialChart data={financials} isLoading={singleLoading} companyName={detailCompany.company_name} type={chartType} />
-          {chartType === 'bs' && (
-            <PBRTrendChart data={valuationData} isLoading={valuationLoading} />
-          )}
-          <FinancialTable
-            data={financials}
-            chartType={chartType}
-            valuationData={chartType === 'bs' ? (valuationData ?? null) : undefined}
-          />
+          <div ref={chartContainerRef}>
+            <KPICard
+              data={financials}
+              isLoading={singleLoading}
+              chartType={chartType}
+              valuationData={chartType === 'pl' ? (valuationData ?? null) : undefined}
+            />
+            <FinancialChart data={financials} isLoading={singleLoading} companyName={detailCompany.company_name} type={chartType} />
+            {chartType === 'bs' && (
+              <PBRTrendChart data={valuationData} isLoading={valuationLoading} />
+            )}
+            <FinancialTable
+              data={financials}
+              chartType={chartType}
+              valuationData={chartType === 'bs' ? (valuationData ?? null) : undefined}
+            />
+          </div>
         </>
       ) : (
         <p className="text-gray-400 text-center text-sm mt-16">
