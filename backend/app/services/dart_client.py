@@ -271,7 +271,7 @@ def _detect_table_unit(table, global_multiplier: int) -> int:
 
 def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dict]:
     """감사보고서(F001) HTML에서 재무제표 계정과목·금액 추출.
-    사업보고서/분기보고서 없는 기업 전용 폴백.
+    연결/별도 감사보고서를 모두 처리해 fs_div를 제목 키워드로 자동 판별.
     """
     logger.warning(f"[DART] _get_financial_from_audit_report 진입 corp={corp_code} year={bsns_year}")
     dart = _get_dart()
@@ -282,13 +282,7 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
     end_dt = f"{next_year}0930"
 
     try:
-        filings = dart.list(
-            corp_code,
-            start=start_dt,
-            end=end_dt,
-            kind="F",
-            kind_detail="F001",
-        )
+        filings = dart.list(corp_code, start=start_dt, end=end_dt, kind="F", kind_detail="F001")
     except Exception as e:
         logger.warning(f"[DART] 감사보고서 목록 조회 실패 corp={corp_code} year={bsns_year}: {e}")
         return []
@@ -297,100 +291,123 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
         logger.warning(f"[DART] 감사보고서 없음 corp={corp_code} year={bsns_year}")
         return []
 
-    try:
-        row = filings.iloc[0] if hasattr(filings, "iloc") else filings[0]
-        # DART API 반환 컬럼명: rcept_no (접수번호)
-        rcp_no = row.get("rcept_no") or row.get("rcp_no") if hasattr(row, "get") else row["rcept_no"]
-    except (KeyError, IndexError) as e:
-        logger.warning(f"[DART] 감사보고서 접수번호 추출 실패 corp={corp_code}: {e}")
-        return []
-    logger.warning(f"[DART] 감사보고서 발견 corp={corp_code} year={bsns_year} rcp={rcp_no}")
+    # 모든 감사보고서 접수번호 수집 (연결/별도가 별도 파일링인 경우 대응)
+    rcp_nos: list[str] = []
+    if hasattr(filings, "iterrows"):
+        for _, row in filings.iterrows():
+            rcp_no = row.get("rcept_no") or row.get("rcp_no")
+            if rcp_no:
+                rcp_nos.append(str(rcp_no))
+    elif filings:
+        rcp_nos = [str(filings[0].get("rcept_no") or filings[0].get("rcp_no", ""))]
 
-    try:
-        sub_docs = dart.sub_docs(rcp_no)
-    except Exception as e:
-        logger.warning(f"[DART] 감사보고서 서브문서 조회 실패 rcp={rcp_no}: {e}")
+    if not rcp_nos:
         return []
 
-    if sub_docs is None or (hasattr(sub_docs, "empty") and sub_docs.empty):
-        return []
+    # 제목 키워드: 연결 여부 판별
+    CFS_KWS = ["연결재무제표", "연결포괄손익", "연결재무상태표", "연결손익계산서"]
+    FINANCIAL_KWS = ["재무제표", "손익계산서", "재무상태표", "포괄손익"]
 
-    # sub_docs 전체 제목 디버그 로그
-    if hasattr(sub_docs, "iterrows"):
-        titles = [str(doc.get("title", "")) for _, doc in sub_docs.iterrows()]
-        logger.warning(f"[DART] 감사보고서 sub_docs rcp={rcp_no} titles={titles}")
+    results: list[dict] = []
+    seen: set[tuple[str, str]] = set()  # (fs_div, account_nm) dedup
 
-    # 재무제표 관련 문서 URL 우선순위: 재무제표 > 손익계산서 > 재무상태표
-    # 제목의 공백을 제거해서 비교 (DART 제목: '재 무 제 표', '(첨부)재 무 제 표' 등)
-    target_url = None
-    priority_keywords = ["재무제표", "손익계산서", "재무상태표", "포괄손익"]
-    if hasattr(sub_docs, "iterrows"):
-        for _, doc in sub_docs.iterrows():
-            title = str(doc.get("title", ""))
-            title_normalized = title.replace(" ", "").replace("\u3000", "")
-            if any(kw in title_normalized for kw in priority_keywords):
-                target_url = doc.get("url")
-                logger.warning(f"[DART] 감사보고서 재무제표 문서 선택 title={title!r} url={target_url}")
-                break
+    for rcp_no in rcp_nos:
+        logger.warning(f"[DART] 감사보고서 처리 corp={corp_code} year={bsns_year} rcp={rcp_no}")
+        try:
+            sub_docs = dart.sub_docs(rcp_no)
+        except Exception as e:
+            logger.warning(f"[DART] 서브문서 조회 실패 rcp={rcp_no}: {e}")
+            continue
 
-    if not target_url:
-        logger.warning(f"[DART] 감사보고서 재무제표 문서 없음 rcp={rcp_no}")
-        return []
+        if sub_docs is None or (hasattr(sub_docs, "empty") and sub_docs.empty):
+            continue
 
-    try:
-        resp = requests.get(target_url, timeout=15)
-        resp.encoding = resp.apparent_encoding or "utf-8"
-        soup = BeautifulSoup(resp.text, "lxml")
-    except Exception as e:
-        logger.warning(f"[DART] 감사보고서 HTML 다운로드 실패 url={target_url}: {e}")
-        return []
+        if hasattr(sub_docs, "iterrows"):
+            titles = [str(doc.get("title", "")) for _, doc in sub_docs.iterrows()]
+            logger.warning(f"[DART] sub_docs rcp={rcp_no} titles={titles}")
 
-    global_multiplier = _detect_unit_multiplier(soup)
-    results = []
+        # sub_docs에서 연결/별도 재무제표 URL 수집 (중복 URL 제외)
+        target_docs: list[tuple[str, str]] = []  # (url, fs_div)
+        seen_urls: set[str] = set()
+        if hasattr(sub_docs, "iterrows"):
+            for _, doc in sub_docs.iterrows():
+                title = str(doc.get("title", ""))
+                title_clean = title.replace(" ", "").replace("\u3000", "")
+                url = doc.get("url")
+                if not url or url in seen_urls:
+                    continue
+                if any(kw in title_clean for kw in CFS_KWS):
+                    target_docs.append((url, "CFS"))
+                    seen_urls.add(url)
+                    logger.warning(f"[DART] 연결 재무제표 발견 title={title!r}")
+                elif any(kw in title_clean for kw in FINANCIAL_KWS):
+                    target_docs.append((url, "OFS"))
+                    seen_urls.add(url)
+                    logger.warning(f"[DART] 별도 재무제표 발견 title={title!r}")
 
-    for table in soup.find_all("table"):
-        multiplier = _detect_table_unit(table, global_multiplier)
-        for tr in table.find_all("tr"):
-            cells = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
-            if len(cells) < 2:
-                continue
-
-            account_nm = cells[0]
-            if not account_nm or account_nm in ("과목", "계정과목", "구분"):
-                continue
-
-            # 당기 금액 추출:
-            # 1) 한글/영문 셀 제거 (주석 레이블 등)
-            # 2) 쉼표 포함 + 4자리 이상 숫자 셀 우선 (실제 금액 형식: "927,389,000,000")
-            # 3) 없으면 일반 숫자 셀 폴백 (주석번호 "4", "20" 등은 쉼표 없어 우선순위 낮음)
-            non_text = [c for c in cells[1:] if not re.search(r"[가-힣a-zA-Z]", c)]
-            financial = [
-                c for c in non_text
-                if "," in c
-                and len(c.replace(",", "").replace("(", "").replace(")", "").strip()) >= 4
-                and _is_standard_amount(c)
-            ]
-            amount = None
-            for cell in (financial if financial else non_text):
-                amount = _parse_amount(cell)
-                if amount is not None:
+        # 연결/별도 구분 문서가 없으면 첫 번째 재무 문서를 OFS로 폴백 (기존 동작 유지)
+        if not target_docs and hasattr(sub_docs, "iterrows"):
+            for _, doc in sub_docs.iterrows():
+                url = doc.get("url")
+                title = str(doc.get("title", ""))
+                title_clean = title.replace(" ", "").replace("\u3000", "")
+                if url and any(kw in title_clean for kw in FINANCIAL_KWS):
+                    target_docs.append((url, "OFS"))
+                    logger.warning(f"[DART] 폴백 재무제표 선택 title={title!r}")
                     break
 
-            if amount is None:
+        # 각 문서 파싱
+        for url, fs_div in target_docs:
+            try:
+                resp = requests.get(url, timeout=15)
+                resp.encoding = resp.apparent_encoding or "utf-8"
+                soup = BeautifulSoup(resp.text, "lxml")
+            except Exception as e:
+                logger.warning(f"[DART] HTML 다운로드 실패 url={url}: {e}")
                 continue
 
-            results.append(
-                {
-                    "account_nm": account_nm,
-                    "thstrm_amount": str(amount * multiplier),
-                    "reprt_code": "F001",
-                    "fs_div": "OFS",
-                }
-            )
+            global_multiplier = _detect_unit_multiplier(soup)
 
-    logger.warning(
-        f"[DART] 감사보고서 파싱 완료 corp={corp_code} year={bsns_year} rows={len(results)}"
-    )
+            for table in soup.find_all("table"):
+                multiplier = _detect_table_unit(table, global_multiplier)
+                for tr in table.find_all("tr"):
+                    cells = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
+                    if len(cells) < 2:
+                        continue
+
+                    account_nm = cells[0]
+                    if not account_nm or account_nm in ("과목", "계정과목", "구분"):
+                        continue
+
+                    dedup_key = (fs_div, account_nm)
+                    if dedup_key in seen:
+                        continue
+
+                    non_text = [c for c in cells[1:] if not re.search(r"[가-힣a-zA-Z]", c)]
+                    financial = [
+                        c for c in non_text
+                        if "," in c
+                        and len(c.replace(",", "").replace("(", "").replace(")", "").strip()) >= 4
+                        and _is_standard_amount(c)
+                    ]
+                    amount = None
+                    for cell in (financial if financial else non_text):
+                        amount = _parse_amount(cell)
+                        if amount is not None:
+                            break
+
+                    if amount is None:
+                        continue
+
+                    seen.add(dedup_key)
+                    results.append({
+                        "account_nm": account_nm,
+                        "thstrm_amount": str(amount * multiplier),
+                        "reprt_code": "F001",
+                        "fs_div": fs_div,
+                    })
+
+    logger.warning(f"[DART] 감사보고서 파싱 완료 corp={corp_code} year={bsns_year} rows={len(results)}")
     return results
 
 
