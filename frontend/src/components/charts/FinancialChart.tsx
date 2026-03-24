@@ -130,21 +130,21 @@ export function FinancialChart({ data, isLoading, companyName, type = 'pl' }: Pr
             <Legend formatter={(value: string) => labels[value] ?? value} />
             {isCf ? (
               <>
-                <Bar yAxisId="left" dataKey="operating_cf" name="operating_cf" fill="#18181b" opacity={0.85} />
+                <Bar yAxisId="left" dataKey="operating_cf" name="operating_cf" fill="#de0000" opacity={0.85} />
                 <Bar yAxisId="left" dataKey="investing_cf" name="investing_cf" fill="#71717a" opacity={0.85} />
                 <Bar yAxisId="left" dataKey="financing_cf" name="financing_cf" fill="#3b82f6" opacity={0.85} />
               </>
             ) : isBs ? (
               <>
-                <Bar yAxisId="left" dataKey="total_assets" name="total_assets" fill="#18181b" opacity={0.85} />
+                <Bar yAxisId="left" dataKey="total_assets" name="total_assets" fill="#9e9e9e" opacity={0.85} />
                 <Line yAxisId="left" dataKey="total_liabilities" name="total_liabilities" stroke="#71717a" strokeWidth={2} dot />
-                <Line yAxisId="left" dataKey="total_equity" name="total_equity" stroke="#a1a1aa" strokeWidth={2} dot />
+                <Line yAxisId="left" dataKey="total_equity" name="total_equity" stroke="#de0000" strokeWidth={2} dot />
                 <Line yAxisId="left" dataKey="cash_and_equivalents" name="cash_and_equivalents" stroke="#3b82f6" strokeWidth={2} dot />
               </>
             ) : (
               <>
-                <Bar yAxisId="left" dataKey="revenue" name="revenue" fill="#18181b" opacity={0.85} />
-                <Line yAxisId="right" dataKey="operating_profit" name="operating_profit" stroke="#71717a" strokeWidth={2} dot />
+                <Bar yAxisId="left" dataKey="revenue" name="revenue" fill="#9e9e9e" opacity={0.85} />
+                <Line yAxisId="right" dataKey="operating_profit" name="operating_profit" stroke="#de0000" strokeWidth={2} dot />
                 <Line yAxisId="right" dataKey="net_income" name="net_income" stroke="#3b82f6" strokeWidth={2} dot />
               </>
             )}
