@@ -21,7 +21,7 @@ import { FinancialTable } from '@/components/charts/FinancialTable'
 import { PBRTrendChart } from '@/components/charts/PBRTrendChart'
 import { ErrorReportButton } from '@/components/layout/ErrorReportButton'
 
-const MAX_COMPANIES = 5
+const MAX_COMPANIES = 10
 
 // CFS 요청 시 account_key 단위로 폴백: preferred fs_div 없는 계정은 반대 fs_div로 보완 + is_fallback 마킹
 function applyFsDivWithFallback(allData: FinancialStatement[], preferredFsDiv: string): FinancialStatement[] {

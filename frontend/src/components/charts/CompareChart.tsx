@@ -19,8 +19,13 @@ export const COMPANY_COLORS = [
   '#18181b',
   '#3b82f6',
   '#71717a',
-  '#93c5fd',
+  '#f59e0b',
+  '#10b981',
   '#a1a1aa',
+  '#ef4444',
+  '#8b5cf6',
+  '#06b6d4',
+  '#f97316',
 ]
 
 interface Props {
