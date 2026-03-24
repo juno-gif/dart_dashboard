@@ -46,7 +46,11 @@ const STANDARD_REVENUE_NMS = new Set(['매출', '매출액', '수익(매출액)'
 
 export function getRevenueLabel(accountNm: string | null | undefined): string {
   if (!accountNm) return '매출'
-  const normalized = accountNm.replace(/\s+/g, '')
+  // 로마자/숫자 접두사 및 주석 제거 후 판단 (예: "I.매출액(주석14와20)" → "매출액")
+  const normalized = accountNm
+    .replace(/\s+/g, '')
+    .replace(/\(주[^)]*\)/g, '')
+    .replace(/^[IVXLCDMivxlcdm\u2160-\u217F\d]+\./, '')
   return STANDARD_REVENUE_NMS.has(normalized) ? '매출' : normalized
 }
 
