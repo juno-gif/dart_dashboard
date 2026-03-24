@@ -97,7 +97,7 @@ export function FinancialChart({ data, isLoading, companyName, type = 'pl' }: Pr
       <div ref={chartRef} className="h-80 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={{ top: 8, right: 80, bottom: 0, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
             <XAxis
               dataKey="year"
               tick={{ fontSize: 12 }}
@@ -130,22 +130,22 @@ export function FinancialChart({ data, isLoading, companyName, type = 'pl' }: Pr
             <Legend formatter={(value: string) => labels[value] ?? value} />
             {isCf ? (
               <>
-                <Bar yAxisId="left" dataKey="operating_cf" name="operating_cf" fill="#16a34a" opacity={0.8} />
-                <Bar yAxisId="left" dataKey="investing_cf" name="investing_cf" fill="#ef4444" opacity={0.8} />
-                <Bar yAxisId="left" dataKey="financing_cf" name="financing_cf" fill="#f59e0b" opacity={0.8} />
+                <Bar yAxisId="left" dataKey="operating_cf" name="operating_cf" fill="#18181b" opacity={0.85} />
+                <Bar yAxisId="left" dataKey="investing_cf" name="investing_cf" fill="#71717a" opacity={0.85} />
+                <Bar yAxisId="left" dataKey="financing_cf" name="financing_cf" fill="#3b82f6" opacity={0.85} />
               </>
             ) : isBs ? (
               <>
-                <Bar yAxisId="left" dataKey="total_assets" name="total_assets" fill="#2563eb" opacity={0.7} />
-                <Line yAxisId="left" dataKey="total_liabilities" name="total_liabilities" stroke="#ef4444" strokeWidth={2} dot />
-                <Line yAxisId="left" dataKey="total_equity" name="total_equity" stroke="#16a34a" strokeWidth={2} dot />
-                <Line yAxisId="left" dataKey="cash_and_equivalents" name="cash_and_equivalents" stroke="#f59e0b" strokeWidth={2} dot />
+                <Bar yAxisId="left" dataKey="total_assets" name="total_assets" fill="#18181b" opacity={0.85} />
+                <Line yAxisId="left" dataKey="total_liabilities" name="total_liabilities" stroke="#71717a" strokeWidth={2} dot />
+                <Line yAxisId="left" dataKey="total_equity" name="total_equity" stroke="#a1a1aa" strokeWidth={2} dot />
+                <Line yAxisId="left" dataKey="cash_and_equivalents" name="cash_and_equivalents" stroke="#3b82f6" strokeWidth={2} dot />
               </>
             ) : (
               <>
-                <Bar yAxisId="left" dataKey="revenue" name="revenue" fill="#2563eb" opacity={0.7} />
-                <Line yAxisId="right" dataKey="operating_profit" name="operating_profit" stroke="#16a34a" strokeWidth={2} dot />
-                <Line yAxisId="right" dataKey="net_income" name="net_income" stroke="#9333ea" strokeWidth={2} dot />
+                <Bar yAxisId="left" dataKey="revenue" name="revenue" fill="#18181b" opacity={0.85} />
+                <Line yAxisId="right" dataKey="operating_profit" name="operating_profit" stroke="#71717a" strokeWidth={2} dot />
+                <Line yAxisId="right" dataKey="net_income" name="net_income" stroke="#3b82f6" strokeWidth={2} dot />
               </>
             )}
           </ComposedChart>

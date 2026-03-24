@@ -10,15 +10,15 @@ export function formatKRW(amount: number): string {
   const sign = amount < 0 ? '-' : ''
 
   if (abs >= 1_000_000_000_000) {
-    return `${sign}₩${(abs / 1e12).toFixed(1)}조`
+    return `${sign}${(abs / 1e12).toFixed(1)}조원`
   }
   if (abs >= 100_000_000) {
-    return `${sign}₩${(abs / 1e8).toFixed(0)}억`
+    return `${sign}${(abs / 1e8).toFixed(0)}억원`
   }
   if (abs >= 1_000_000) {
-    return `${sign}₩${(abs / 1e6).toFixed(1)}백만`
+    return `${sign}${(abs / 1e6).toFixed(1)}백만원`
   }
-  return `${sign}₩${abs.toLocaleString()}원`
+  return `${sign}${abs.toLocaleString()}원`
 }
 
 export function formatPercent(value: number, digits = 1): string {

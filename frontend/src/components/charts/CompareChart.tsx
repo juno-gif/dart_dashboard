@@ -16,11 +16,11 @@ import { DownloadButton } from '@/components/charts/DownloadButton'
 import type { Company, FinancialStatement } from '@/types'
 
 export const COMPANY_COLORS = [
-  '#2563eb',
-  '#16a34a',
-  '#9333ea',
-  '#ea580c',
-  '#0891b2',
+  '#18181b',
+  '#3b82f6',
+  '#71717a',
+  '#93c5fd',
+  '#a1a1aa',
 ]
 
 interface Props {
@@ -99,7 +99,7 @@ export function CompareChart({ data, companies, isLoading }: Props) {
                     data={chartData}
                     margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
                   >
-                    <CartesianGrid strokeDasharray="3 3" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
                     <XAxis
                       dataKey="year"
                       tick={{ fontSize: 12 }}

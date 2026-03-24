@@ -100,14 +100,14 @@ export function KPICard({ data, isLoading, chartType = 'pl', valuationData }: Pr
       {cards.map((card) => (
         <div
           key={card.label}
-          className="rounded-xl border bg-card p-4 shadow-sm"
+          className="rounded-xl border border-zinc-200 bg-white p-5 shadow-none"
         >
-          <p className="text-sm text-muted-foreground">{card.label}</p>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{card.value}</p>
+          <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">{card.label}</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums text-zinc-900">{card.value}</p>
           {card.yoy != null && (
             <p
-              className={`mt-1 text-xs ${
-                card.yoy >= 0 ? 'text-green-600' : 'text-red-500'
+              className={`mt-1.5 text-xs ${
+                card.yoy >= 0 ? 'text-emerald-600' : 'text-red-500'
               }`}
             >
               {card.yoy >= 0 ? '▲' : '▼'}{' '}
