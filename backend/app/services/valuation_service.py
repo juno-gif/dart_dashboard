@@ -135,6 +135,8 @@ def get_valuation_data(
 
     except Exception as e:
         logger.warning(f"[Valuation] 조회 실패 stock={stock_code}: {e}")
+        # 실패 결과도 5분간 메모리 캐시 — rate limit 상황에서 반복 호출 방지
+        _valuation_cache[cache_key] = (now - _CACHE_TTL + 300, _empty())
         return _empty()
 
 
