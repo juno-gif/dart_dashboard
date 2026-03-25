@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "📊 재무 분석 대시보드",
+  title: "재무 분석 대시보드",
   description: "DART OpenAPI 기반 내부 재무 분석 대시보드",
 };
 
