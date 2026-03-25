@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { CompanySearchInput } from '@/components/search/CompanySearchInput'
 import { FinancialChart } from '@/components/charts/FinancialChart'
 import { KPICard } from '@/components/charts/KPICard'
@@ -13,9 +13,10 @@ import { DartWarningBanner } from '@/components/layout/DartWarningBanner'
 import { SaveAnalysisSetDialog } from '@/components/layout/SaveAnalysisSetDialog'
 import { AnalysisSetPanel } from '@/components/layout/AnalysisSetItem'
 import { UpdateAnalysisSetDialog } from '@/components/layout/UpdateAnalysisSetDialog'
-import { checkHealth, getNewDataStatus, getCompaniesByCodes } from '@/lib/api'
+import { checkHealth, getNewDataStatus, getCompaniesByCodes, syncCompany } from '@/lib/api'
 import type { AnalysisSetData } from '@/lib/api'
 import type { Company, FinancialStatement, FinancialType } from '@/types'
+import { toast } from 'sonner'
 import { ManualEntryDialog } from '@/components/search/ManualEntryDialog'
 import { FinancialTable } from '@/components/charts/FinancialTable'
 import { PBRTrendChart } from '@/components/charts/PBRTrendChart'
@@ -44,6 +45,8 @@ export default function DashboardPage() {
   const [editingSet, setEditingSet] = useState<AnalysisSetData | null>(null)
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
   const [editingCorpCode, setEditingCorpCode] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const queryClient = useQueryClient()
   const chartContainerRef = useRef<HTMLDivElement>(null)
 
   // 서버 웨이크업 체크 (Render 무료 플랜은 슬립 후 첫 요청에 30~60초 소요)
@@ -167,6 +170,22 @@ export default function DashboardPage() {
 
   const handleDeleteAnalysisSet = (setId: string) => {
     deleteSet.mutate(setId)
+  }
+
+  const handleSync = async () => {
+    if (!detailCorpCode || syncing) return
+    setSyncing(true)
+    try {
+      await syncCompany(detailCorpCode, 10)
+      toast.success('데이터 수집을 시작했습니다. 1~2분 후 자동으로 새로고침됩니다.')
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['financials', detailCorpCode] })
+        setSyncing(false)
+      }, 90000)
+    } catch {
+      toast.error('재수집 요청에 실패했습니다.')
+      setSyncing(false)
+    }
   }
 
   if (serverWaking && !serverReady) {
@@ -339,7 +358,16 @@ export default function DashboardPage() {
                 ))}
               </div>
             )}
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              {detailCompany.is_listed && (
+                <button
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className="px-3 py-1 text-xs border rounded-md text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                >
+                  {syncing ? '수집 중...' : '데이터 재수집'}
+                </button>
+              )}
               <ErrorReportButton
                 companyName={detailCompany.company_name}
                 chartContainerRef={chartContainerRef}

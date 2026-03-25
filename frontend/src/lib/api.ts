@@ -212,6 +212,11 @@ export async function getValuation(corpCode: string, years = 10): Promise<Valuat
   return apiGet<ValuationData>(`/api/v1/companies/${corpCode}/valuation?years=${years}`)
 }
 
+// ── 데이터 재수집 ────────────────────────────────────────
+export async function syncCompany(corpCode: string, years = 10): Promise<void> {
+  await apiPost(`/api/v1/sync/company/${corpCode}?years=${years}`, {})
+}
+
 // ── AI 재무 요약 ────────────────────────────────────────
 export interface AiSummaryResult {
   type: 'summary' | 'answer'
