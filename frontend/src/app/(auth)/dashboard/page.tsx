@@ -381,7 +381,7 @@ export default function DashboardPage() {
               data={financials}
               isLoading={singleLoading}
               chartType={chartType}
-              valuationData={chartType === 'pl' ? (valuationData ?? null) : undefined}
+              valuationData={chartType === 'pl' ? valuationData : undefined}
             />
             <FinancialChart data={financials} isLoading={singleLoading} companyName={detailCompany.company_name} type={chartType} />
             {chartType === 'bs' && (
@@ -390,7 +390,7 @@ export default function DashboardPage() {
             <FinancialTable
               data={financials}
               chartType={chartType}
-              valuationData={chartType === 'bs' ? (valuationData ?? null) : undefined}
+              valuationData={chartType === 'bs' ? valuationData : undefined}
             />
           </div>
         </>
