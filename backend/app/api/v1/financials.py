@@ -136,9 +136,10 @@ def get_valuation(
         .single()
         .execute()
     )
-    if not res.data or not res.data.get("stock_code"):
+    stock_code = (res.data or {}).get("stock_code", "")
+    if not stock_code or not stock_code.strip():
         return {"current_pbr": None, "current_per": None, "yearly": []}
-    stock_code = res.data["stock_code"]
+    stock_code = stock_code.strip()
 
     # DB에서 연도별 자본총계 + 순이익 조회 (CFS 우선, 없으면 OFS)
     fs_res = (

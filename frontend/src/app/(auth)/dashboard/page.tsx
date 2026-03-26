@@ -124,7 +124,7 @@ export default function DashboardPage() {
     )
 
   const { data: valuationData, isLoading: valuationLoading } = useValuation(
-    detailCompany?.is_listed ? detailCorpCode : null
+    detailCompany?.stock_code?.trim() ? detailCorpCode : null
   )
 
   const isDetailView = !isCompareMode || !!focusedCorpCode
