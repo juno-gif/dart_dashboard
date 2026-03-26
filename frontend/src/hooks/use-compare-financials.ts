@@ -13,6 +13,7 @@ export function useCompareFinancials(
     queryKey: ['compare', sortedCodesStr, { years, type }],
     queryFn: () => getCompareFinancials(codes, years, type),
     enabled: codes.length >= 2,
-    staleTime: 5 * 60_000,
+    staleTime: 30 * 60_000, // 30분 캐시
+    gcTime: 60 * 60_000,   // 1시간 메모리 유지
   })
 }

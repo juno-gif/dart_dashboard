@@ -13,6 +13,7 @@ export function useFinancialData(
     queryKey: ['financials', corpCode, { years, type, fsDivParam }],
     queryFn: () => getFinancials(corpCode!, years, type, fsDivParam),
     enabled: !!corpCode,
-    staleTime: 5 * 60_000, // 5분 캐시
+    staleTime: 30 * 60_000, // 30분 캐시
+    gcTime: 60 * 60_000,   // 1시간 메모리 유지
   })
 }
