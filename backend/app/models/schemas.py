@@ -109,9 +109,9 @@ class SharedAnalysisSetResponse(BaseModel):
 # ── Story 5.1: 비상장사 수기 입력 ────────────────────────
 class ManualFinancialEntry(BaseModel):
     bsns_year: str = Field(..., pattern=r'^\d{4}$')
-    revenue: Optional[int] = None
-    operating_profit: Optional[int] = None
-    net_income: Optional[int] = None
+    revenue: Optional[float] = None
+    operating_profit: Optional[float] = None
+    net_income: Optional[float] = None
 
 
 class ManualCompanyCreate(BaseModel):

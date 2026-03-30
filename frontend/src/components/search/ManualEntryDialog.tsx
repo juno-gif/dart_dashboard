@@ -47,7 +47,7 @@ interface Props {
 const EMPTY_ROW: FinancialRow = { bsns_year: '', revenue: '', operating_profit: '', net_income: '' }
 
 function isValidNumber(val: string) {
-  return val === '' || /^-?\d+$/.test(val.trim())
+  return val === '' || /^-?\d+(\.\d)?$/.test(val.trim())
 }
 
 export function ManualEntryDialog({ open, onOpenChange, initialCompanyName = '', onSelect, mode = 'create', corpCode }: Props) {
@@ -70,9 +70,9 @@ export function ManualEntryDialog({ open, onOpenChange, initialCompanyName = '',
       setCompanyName(existingData.company_name)
       const prefilled = existingData.financials.map((f) => ({
         bsns_year: f.bsns_year,
-        revenue: f.revenue != null ? String(Math.round(f.revenue / 100_000_000)) : '',
-        operating_profit: f.operating_profit != null ? String(Math.round(f.operating_profit / 100_000_000)) : '',
-        net_income: f.net_income != null ? String(Math.round(f.net_income / 100_000_000)) : '',
+        revenue: f.revenue != null ? String(Math.round(f.revenue / 10_000_000) / 10) : '',
+        operating_profit: f.operating_profit != null ? String(Math.round(f.operating_profit / 10_000_000) / 10) : '',
+        net_income: f.net_income != null ? String(Math.round(f.net_income / 10_000_000) / 10) : '',
       }))
       setRows(prefilled.length > 0 ? prefilled : [{ ...EMPTY_ROW }])
       setRowErrors(new Array(prefilled.length || 1).fill({}))
@@ -131,15 +131,15 @@ export function ManualEntryDialog({ open, onOpenChange, initialCompanyName = '',
         valid = false
       }
       if (row.revenue && !isValidNumber(row.revenue)) {
-        err.revenue = '숫자만 입력하세요'
+        err.revenue = '소수점 첫째 자리까지 입력 가능합니다'
         valid = false
       }
       if (row.operating_profit && !isValidNumber(row.operating_profit)) {
-        err.operating_profit = '숫자만 입력하세요'
+        err.operating_profit = '소수점 첫째 자리까지 입력 가능합니다'
         valid = false
       }
       if (row.net_income && !isValidNumber(row.net_income)) {
-        err.net_income = '숫자만 입력하세요'
+        err.net_income = '소수점 첫째 자리까지 입력 가능합니다'
         valid = false
       }
       return err
@@ -156,9 +156,9 @@ export function ManualEntryDialog({ open, onOpenChange, initialCompanyName = '',
       financials: rows.map((row) => ({
         bsns_year: row.bsns_year.trim(),
         // 억 단위 → 원 단위 변환 (빈 값은 null)
-        revenue: row.revenue ? parseInt(row.revenue, 10) * 100_000_000 : null,
-        operating_profit: row.operating_profit ? parseInt(row.operating_profit, 10) * 100_000_000 : null,
-        net_income: row.net_income ? parseInt(row.net_income, 10) * 100_000_000 : null,
+        revenue: row.revenue ? parseFloat(row.revenue) * 100_000_000 : null,
+        operating_profit: row.operating_profit ? parseFloat(row.operating_profit) * 100_000_000 : null,
+        net_income: row.net_income ? parseFloat(row.net_income) * 100_000_000 : null,
       })),
     }
 
