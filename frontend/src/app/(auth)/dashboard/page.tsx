@@ -376,6 +376,17 @@ export default function DashboardPage() {
               />
             </div>
           </div>
+          {!singleLoading && financials.length === 0 && (
+            <div className="mt-6 rounded-lg border bg-muted/40 p-6 text-center space-y-3">
+              <p className="text-sm text-muted-foreground">수집된 재무 데이터가 없습니다.</p>
+              <button
+                onClick={() => setEditingCorpCode(detailCorpCode)}
+                className="px-4 py-2 text-sm border rounded-md hover:bg-muted transition-colors"
+              >
+                실적 수기 입력
+              </button>
+            </div>
+          )}
           <div ref={chartContainerRef}>
             <KPICard
               data={financials}
