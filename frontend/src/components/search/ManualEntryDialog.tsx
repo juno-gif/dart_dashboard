@@ -64,10 +64,17 @@ export function ManualEntryDialog({ open, onOpenChange, initialCompanyName = '',
     enabled: mode === 'edit' && open && !!corpCode,
   })
 
+  // 다이얼로그 열릴 때 initialCompanyName으로 먼저 채우기 (API 로드 전 공백 방지)
+  useEffect(() => {
+    if (open && initialCompanyName) {
+      setCompanyName(initialCompanyName)
+    }
+  }, [open, initialCompanyName])
+
   // 기존 데이터 로드 시 폼 prefill (원 → 억 단위 변환)
   useEffect(() => {
     if (mode === 'edit' && existingData) {
-      setCompanyName(existingData.company_name)
+      setCompanyName(existingData.company_name || initialCompanyName)
       const prefilled = existingData.financials.map((f) => ({
         bsns_year: f.bsns_year,
         revenue: f.revenue != null ? String(Math.round(f.revenue / 10_000_000) / 10) : '',

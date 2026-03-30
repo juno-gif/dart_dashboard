@@ -424,6 +424,7 @@ export default function DashboardPage() {
         onSelect={() => { setEditingCorpCode(null) }}
         mode="edit"
         corpCode={editingCorpCode ?? undefined}
+        initialCompanyName={selectedCompanies.find(c => c.corp_code === editingCorpCode)?.company_name ?? ''}
       />
     </main>
   )
