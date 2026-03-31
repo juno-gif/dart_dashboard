@@ -588,13 +588,13 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
 
             # 감사보고서 HTML 파싱 시 동일 account_key가 여러 테이블에서 중복 추출될 수 있음
             # UPSERT 배치 내 중복 → "ON CONFLICT DO UPDATE command cannot affect row a second time" 오류 방지
-            seen_keys: set = set()
-            deduped: list[dict] = []
+            # 동일 키 충돌 시 절댓값이 큰 항목 유지 (예: 영업수익 1432억 vs 이자수익 8억 → 영업수익 선택)
+            dedup_map: dict = {}
             for item in upsert_data:
                 key = (item["corp_code"], item["bsns_year"], item["reprt_code"], item["fs_div"], item["account_key"])
-                if key not in seen_keys:
-                    seen_keys.add(key)
-                    deduped.append(item)
+                if key not in dedup_map or abs(item.get("amount", 0)) > abs(dedup_map[key].get("amount", 0)):
+                    dedup_map[key] = item
+            deduped = list(dedup_map.values())
             logger.info(f"[DART] UPSERT 시작 corp={corp_code} year={bsns_year} rows={len(deduped)}")
             try:
                 res = supabase.table("financial_statements").upsert(
