@@ -129,8 +129,12 @@ def get_valuation_data(
 
         result = {"current_pbr": current_pbr, "current_per": current_per, "yearly": yearly}
 
-        _valuation_cache[cache_key] = (now, result)
-        _supabase_cache_set(stock_code, result)
+        # 유효한 데이터가 없으면 짧게 캐시 (5분), 있으면 24시간
+        has_data = current_pbr is not None or len(yearly) > 0
+        cache_ts = now if has_data else now - _CACHE_TTL + _FAIL_TTL
+        _valuation_cache[cache_key] = (cache_ts, result)
+        if has_data:
+            _supabase_cache_set(stock_code, result)
 
         logger.info(
             f"[Valuation] 조회 완료 stock={stock_code} pbr={current_pbr} per={current_per} years={len(yearly)}"
