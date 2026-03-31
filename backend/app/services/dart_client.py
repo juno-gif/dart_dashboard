@@ -284,7 +284,8 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
     end_dt = f"{next_year}0930"
 
     try:
-        filings = dart.list(corp_code, start=start_dt, end=end_dt, kind="F", kind_detail="F001")
+        # kind_detail 미지정 → 연결감사보고서(F002 등)도 포함 수집
+        filings = dart.list(corp_code, start=start_dt, end=end_dt, kind="F")
     except Exception as e:
         logger.warning(f"[DART] 감사보고서 목록 조회 실패 corp={corp_code} year={bsns_year}: {e}")
         return []
@@ -367,6 +368,12 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
             except Exception as e:
                 logger.warning(f"[DART] HTML 다운로드 실패 url={url}: {e}")
                 continue
+
+            # sub_doc title이 연결 여부를 잘못 판별한 경우 HTML 본문으로 재확인
+            full_text = soup.get_text()
+            if fs_div == "OFS" and any(kw in full_text for kw in ["연결재무제표", "연결포괄손익", "연결손익계산서", "연결재무상태표"]):
+                fs_div = "CFS"
+                logger.warning(f"[DART] fs_div OFS→CFS 재판별 (HTML 본문 기준) url={url}")
 
             global_multiplier = _detect_unit_multiplier(soup)
 
