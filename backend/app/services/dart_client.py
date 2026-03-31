@@ -74,7 +74,9 @@ def get_financial_statements(
         rows.extend(cf_rows)
 
     # finstate()가 IS 매출 계정을 누락하는 경우(영업수익 등 CIS 형식 기업) → finstate_all()로 보완
-    _REVENUE_NMS = {"매출액", "영업수익", "수익(매출액)", "영업수익(매출액)", "매출", "이자수익", "순이자손익"}
+    # 이자수익·순이자손익은 제외: 비금융사(이글루 등)에서 하위 항목으로 등장해 has_revenue=True가 되면
+    # finstate_all()을 통한 영업수익 수집이 스킵되는 버그 유발
+    _REVENUE_NMS = {"매출액", "영업수익", "수익(매출액)", "영업수익(매출액)", "매출"}
     def _norm_nm(nm: str) -> str:
         s = nm.replace(" ", "").replace("\u3000", "")
         return re.sub(r"^[IVXLCDMivxlcdm\u2160-\u217F\d]+\.", "", s)
