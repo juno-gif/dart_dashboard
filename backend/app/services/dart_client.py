@@ -312,7 +312,6 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
     FINANCIAL_KWS = ["재무제표", "손익계산서", "재무상태표", "포괄손익"]
 
     results: list[dict] = []
-    seen: set[tuple[str, str]] = set()  # (fs_div, account_nm) dedup
 
     for rcp_no in rcp_nos:
         logger.warning(f"[DART] 감사보고서 처리 corp={corp_code} year={bsns_year} rcp={rcp_no}")
@@ -359,12 +358,15 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
                     logger.warning(f"[DART] 폴백 재무제표 선택 title={title!r}")
                     break
 
-        # 각 문서 파싱
+        # 각 문서 파싱 (seen dedup은 URL 단위로 초기화 — 여러 테이블에서 같은 계정이 나올 때 max-amount dedup이 올바른 값 선택)
         for url, fs_div in target_docs:
+            seen: set[tuple[str, str]] = set()  # (fs_div, account_nm) — URL 단위 재초기화
             try:
                 resp = requests.get(url, timeout=15)
                 resp.encoding = resp.apparent_encoding or "utf-8"
-                soup = BeautifulSoup(resp.text, "lxml")
+                # DART HTML의 <주석 X, Y> 표기가 HTML 태그로 파싱되어 테이블 구조를 깨는 문제 방지
+                raw_html = re.sub(r"<(주석[^>]*)>", r"&lt;\1&gt;", resp.text)
+                soup = BeautifulSoup(raw_html, "lxml")
             except Exception as e:
                 logger.warning(f"[DART] HTML 다운로드 실패 url={url}: {e}")
                 continue
