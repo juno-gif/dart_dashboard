@@ -46,20 +46,46 @@ def _supabase_cache_set(stock_code: str, data: dict) -> None:
 
 
 def _get_stock_info(stock_code: str) -> dict | None:
-    """FinanceDataReader로 현재 시가총액·상장주식수 조회 (KOSPI → KOSDAQ 순)."""
+    """FinanceDataReader로 현재 시가총액·상장주식수 조회 (KOSPI → KOSDAQ 순).
+    장 마감/주말에는 Marcap이 NaN → 최근 종가 × 상장주식수로 대체 계산.
+    """
     import FinanceDataReader as fdr
+    import math
     for market in ("KOSPI", "KOSDAQ"):
         try:
             df = fdr.StockListing(market)
             row = df[df["Code"] == stock_code]
-            if not row.empty:
-                marcap = row.iloc[0].get("Marcap")
-                shares = row.iloc[0].get("Stocks")
-                if marcap and marcap > 0:
-                    return {"marcap": float(marcap), "shares": float(shares) if shares else None}
+            if row.empty:
+                continue
+            shares_raw = row.iloc[0].get("Stocks")
+            shares = float(shares_raw) if shares_raw and not (isinstance(shares_raw, float) and math.isnan(shares_raw)) else None
+            marcap_raw = row.iloc[0].get("Marcap")
+            marcap = float(marcap_raw) if marcap_raw and not (isinstance(marcap_raw, float) and math.isnan(marcap_raw)) and marcap_raw > 0 else None
+            # Marcap이 NaN(장 마감/주말)이면 최근 종가로 계산
+            if not marcap and shares:
+                price = _get_recent_price(stock_code)
+                if price:
+                    marcap = price * shares
+            if marcap and marcap > 0:
+                return {"marcap": marcap, "shares": shares}
         except Exception as e:
             logger.debug(f"[Valuation] StockListing {market} 실패: {e}")
     return None
+
+
+def _get_recent_price(stock_code: str) -> float | None:
+    """최근 거래일 종가 조회 (최근 10거래일 내)."""
+    import FinanceDataReader as fdr
+    from datetime import timedelta, date
+    try:
+        end = date.today()
+        start = end - timedelta(days=14)
+        df = fdr.DataReader(stock_code, str(start), str(end))
+        if df.empty:
+            return None
+        return float(df.iloc[-1]["Close"])
+    except Exception:
+        return None
 
 
 def _get_year_end_price(stock_code: str, year: int) -> float | None:
