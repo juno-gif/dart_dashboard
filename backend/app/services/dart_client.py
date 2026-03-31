@@ -547,8 +547,9 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
             # 로마자/아라비아숫자 접두사 제거 (예: "I.영업수익" → "영업수익", "Ⅰ.영업수익" → "영업수익", "1.매출액" → "매출액")
             # \u2160-\u217F: 유니코드 로마자 (Ⅰ Ⅱ Ⅲ ... DART에서 실제 사용하는 전각 로마자)
             account_nm_no_prefix = re.sub(r"^[IVXLCDMivxlcdm\u2160-\u217F\d]+\.", "", account_nm_normalized)
-            # 주석번호 제거 (예: "영업수익(주25,32)" → "영업수익", "매출액(주석14와20)" → "매출액")
-            account_nm_no_note = re.sub(r"\(주[^)]*\)", "", account_nm_no_prefix)
+            # 주석번호 제거 (예: "영업수익(주25,32)" → "영업수익", "영업수익<주석13,18>" → "영업수익")
+            # 괄호형: (주...), 꺾쇠형: <주석...> 모두 제거
+            account_nm_no_note = re.sub(r"\(주[^)]*\)|<주석[^>]*>", "", account_nm_no_prefix)
             account_key = (
                 mappings.get(account_nm)
                 or mappings.get(account_nm_normalized)
