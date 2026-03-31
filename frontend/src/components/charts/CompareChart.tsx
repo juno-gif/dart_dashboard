@@ -41,15 +41,15 @@ function pivotByCompany(
 ) {
   const years = [...new Set(data.map((d) => d.bsns_year))].sort()
   return years.map((year) => {
-    const row: Record<string, string | number> = { year }
+    const row: Record<string, string | number | null> = { year }
     for (const code of codes) {
-      row[code] =
-        data.find(
-          (d) =>
-            d.bsns_year === year &&
-            d.corp_code === code &&
-            d.account_key === accountKey
-        )?.amount ?? 0
+      const found = data.find(
+        (d) =>
+          d.bsns_year === year &&
+          d.corp_code === code &&
+          d.account_key === accountKey
+      )
+      row[code] = found != null ? found.amount : null
     }
     return row
   })
@@ -138,6 +138,7 @@ export function CompareChart({ data, companies, isLoading }: Props) {
                         stroke={COMPANY_COLORS[idx % COMPANY_COLORS.length]}
                         strokeWidth={2}
                         dot
+                        connectNulls={false}
                       />
                     ))}
                   </LineChart>
