@@ -415,6 +415,14 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
 
 # ── 기본 계정 매핑 ────────────────────────────────────────────────────────────
 
+# 순손실/영업손실 등 "손실" 계정은 DART가 양수로 반환 → 저장 시 부호 반전 필요
+_NEGATE_ACCOUNT_NMS: set[str] = {
+    "영업손실",
+    "당기순손실",
+    "분기순손실",
+    "반기순손실",
+}
+
 _BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
     "매출액": "revenue",
     "수익(매출액)": "revenue",
@@ -556,6 +564,10 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
                 amount = int(str(raw_amount).replace(",", "")) if raw_amount else None
             except (ValueError, TypeError):
                 amount = None
+
+            # 손실 계정(영업손실·당기순손실 등)은 DART가 양수 반환 → 부호 반전
+            if amount is not None and account_nm_no_note in _NEGATE_ACCOUNT_NMS:
+                amount = -amount
 
             upsert_data.append(
                 {
