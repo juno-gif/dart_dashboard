@@ -110,6 +110,31 @@ export async function getCompaniesByCodes(codes: string[]): Promise<Company[]> {
   return apiGet<Company[]>(`/api/v1/companies/by-codes?codes=${encodeURIComponent(codes.join(','))}`)
 }
 
+// ── 분석 그룹 ───────────────────────────────────────────
+export interface AnalysisGroupData {
+  id: string
+  name: string
+  display_order: number
+  created_at: string
+  updated_at: string
+}
+
+export async function listAnalysisGroups(): Promise<AnalysisGroupData[]> {
+  return apiGet<AnalysisGroupData[]>('/api/v1/analysis-groups')
+}
+
+export async function createAnalysisGroup(name: string): Promise<AnalysisGroupData> {
+  return apiPost<AnalysisGroupData>('/api/v1/analysis-groups', { name })
+}
+
+export async function updateAnalysisGroup(id: string, data: { name?: string; display_order?: number }): Promise<AnalysisGroupData> {
+  return apiPatch<AnalysisGroupData>(`/api/v1/analysis-groups/${id}`, data)
+}
+
+export async function deleteAnalysisGroup(id: string): Promise<void> {
+  return apiDelete(`/api/v1/analysis-groups/${id}`)
+}
+
 // ── 분석 세트 ───────────────────────────────────────────
 export interface AnalysisSetData {
   id: string
@@ -117,6 +142,7 @@ export interface AnalysisSetData {
   owner_id: string | null
   company_codes: string[]
   share_token: string | null
+  group_id: string | null
   created_at: string
   updated_at: string
 }
@@ -124,6 +150,7 @@ export interface AnalysisSetData {
 export async function createAnalysisSet(data: {
   name: string
   company_codes: string[]
+  group_id?: string | null
 }): Promise<AnalysisSetData> {
   return apiPost<AnalysisSetData>('/api/v1/analysis-sets', data)
 }
@@ -138,7 +165,7 @@ export async function getAnalysisSet(id: string): Promise<AnalysisSetData> {
 
 export async function updateAnalysisSet(
   id: string,
-  data: { name?: string; company_codes?: string[] }
+  data: { name?: string; company_codes?: string[]; group_id?: string | null }
 ): Promise<AnalysisSetData> {
   return apiPatch<AnalysisSetData>(`/api/v1/analysis-sets/${id}`, data)
 }
