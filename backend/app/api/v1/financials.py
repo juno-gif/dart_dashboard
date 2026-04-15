@@ -41,8 +41,8 @@ def compare_financials(
         raise HTTPException(status_code=400, detail="years는 1~10 사이여야 합니다.")
 
     code_list = [c.strip() for c in codes.split(",") if c.strip()]
-    if not code_list or len(code_list) > 5:
-        raise HTTPException(status_code=400, detail="codes는 1~5개여야 합니다.")
+    if not code_list or len(code_list) > 10:
+        raise HTTPException(status_code=400, detail="codes는 1~10개여야 합니다.")
 
     all_data: list = []
     if chart_type == "bs":

@@ -186,70 +186,70 @@ export default function DashboardPage() {
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* ── 상단 바 ── */}
-      <header className="h-[52px] border-b shrink-0 flex items-center gap-3 px-4 bg-background">
-        {/* 로고 (사이드바 너비와 맞춤) */}
-        <div className="w-[240px] shrink-0 text-sm font-bold tracking-tight text-foreground">
-          DART·대시
+      <header className="border-b shrink-0 bg-background">
+        {/* Row 1: 로고 + 검색 */}
+        <div className="h-[52px] flex items-center gap-3 px-4">
+          <div className="w-[240px] shrink-0 text-sm font-bold tracking-tight text-foreground">
+            DART·대시
+          </div>
+          <div className="flex-1 max-w-sm">
+            <CompanySearchInput onSelect={handleSelect} disabled={isAtMax} />
+          </div>
         </div>
 
-        {/* 검색 */}
-        <div className="flex-1 max-w-sm">
-          <CompanySearchInput onSelect={handleSelect} disabled={isAtMax} />
-        </div>
-
-        {/* 선택된 기업 chips + 공유 */}
-        <div className="ml-auto flex items-center gap-2 min-w-0 overflow-x-auto">
-          {isCompareMode && (
-            <span className="text-xs text-muted-foreground shrink-0">클릭하면 상세 확인</span>
-          )}
-          {selectedCompanies.map((c, idx) => {
-            const isFocused = focusedCorpCode === c.corp_code
-            const color = COMPANY_COLORS[idx % COMPANY_COLORS.length]
-            return (
-              <div
-                key={c.corp_code}
-                onClick={isCompareMode ? () => setFocusedCorpCode(isFocused ? null : c.corp_code) : undefined}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border shrink-0 transition-all ${
-                  isCompareMode ? 'cursor-pointer hover:opacity-80' : ''
-                } ${isFocused ? 'ring-2 ring-offset-1 ring-current' : ''}`}
-                style={{
-                  backgroundColor: `${color}${isFocused ? '30' : '18'}`,
-                  borderColor: color,
-                  color: isFocused ? color : undefined,
-                }}
-              >
-                {newDataCodes.has(c.corp_code) && (
-                  <span className="text-green-500 text-[10px]">●</span>
-                )}
-                <span>{c.company_name}</span>
-                {c.stock_code && <span className="opacity-50">{c.stock_code}</span>}
-                {!c.is_listed && (
+        {/* Row 2: 선택된 기업 chips (기업 있을 때만) */}
+        {selectedCompanies.length > 0 && (
+          <div className="flex items-center gap-2 px-4 pb-2.5 overflow-x-auto">
+            {isCompareMode && (
+              <span className="text-xs text-muted-foreground shrink-0">클릭하면 상세 확인</span>
+            )}
+            {selectedCompanies.map((c, idx) => {
+              const isFocused = focusedCorpCode === c.corp_code
+              const color = COMPANY_COLORS[idx % COMPANY_COLORS.length]
+              return (
+                <div
+                  key={c.corp_code}
+                  onClick={isCompareMode ? () => setFocusedCorpCode(isFocused ? null : c.corp_code) : undefined}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border shrink-0 transition-all ${
+                    isCompareMode ? 'cursor-pointer hover:opacity-80' : ''
+                  } ${isFocused ? 'ring-2 ring-offset-1 ring-current' : ''}`}
+                  style={{
+                    backgroundColor: `${color}${isFocused ? '30' : '18'}`,
+                    borderColor: color,
+                    color: isFocused ? color : undefined,
+                  }}
+                >
+                  {newDataCodes.has(c.corp_code) && (
+                    <span className="text-green-500 text-[10px]">●</span>
+                  )}
+                  <span>{c.company_name}</span>
+                  {c.stock_code && <span className="opacity-50">{c.stock_code}</span>}
+                  {!c.is_listed && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditingCorpCode(c.corp_code) }}
+                      className="text-blue-500 hover:text-blue-700"
+                    >편집</button>
+                  )}
                   <button
-                    onClick={(e) => { e.stopPropagation(); setEditingCorpCode(c.corp_code) }}
-                    className="text-blue-500 hover:text-blue-700"
-                  >편집</button>
-                )}
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleRemove(c.corp_code) }}
-                  className="opacity-40 hover:opacity-80 ml-0.5"
-                >×</button>
-              </div>
-            )
-          })}
-          {selectedCompanies.length > 0 && (
+                    onClick={(e) => { e.stopPropagation(); handleRemove(c.corp_code) }}
+                    className="opacity-40 hover:opacity-80 ml-0.5"
+                  >×</button>
+                </div>
+              )
+            })}
             <button
               onClick={() => { setSelectedCompanies([]); setActiveSetId(null) }}
               className="shrink-0 px-2.5 py-1 text-xs border rounded-md text-muted-foreground hover:bg-muted transition-colors"
             >
               선택 취소
             </button>
-          )}
-          {activeSetId && (
-            <div className="shrink-0">
-              <ShareDialog setId={activeSetId} />
-            </div>
-          )}
-        </div>
+            {activeSetId && (
+              <div className="shrink-0">
+                <ShareDialog setId={activeSetId} />
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
       {/* ── 바디 ── */}

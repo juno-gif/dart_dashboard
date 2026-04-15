@@ -21,8 +21,8 @@ export function useAnalysisSets() {
   })
 
   const saveSet = useMutation({
-    mutationFn: ({ name, companyCodes }: { name: string; companyCodes: string[] }) =>
-      createAnalysisSet({ name, company_codes: companyCodes }),
+    mutationFn: ({ name, companyCodes, groupId }: { name: string; companyCodes: string[]; groupId?: string | null }) =>
+      createAnalysisSet({ name, company_codes: companyCodes, group_id: groupId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['analysis-sets'] })
       toast.success('분석 세트가 저장되었습니다', { duration: 3000 })
@@ -34,8 +34,8 @@ export function useAnalysisSets() {
   })
 
   const updateSet = useMutation({
-    mutationFn: ({ id, name, companyCodes }: { id: string; name?: string; companyCodes?: string[] }) =>
-      updateAnalysisSet(id, { name, company_codes: companyCodes }),
+    mutationFn: ({ id, name, companyCodes, groupId }: { id: string; name?: string; companyCodes?: string[]; groupId?: string | null }) =>
+      updateAnalysisSet(id, { name, company_codes: companyCodes, group_id: groupId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['analysis-sets'] })
       toast.success('변경 사항이 저장되었습니다', { duration: 3000 })
