@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from app.core.config import settings
 from app.core.database import get_supabase_client
-from app.models.schemas import AnalysisSet, AnalysisSetCreate, AnalysisSetUpdate, ShareResponse
+from app.models.schemas import AnalysisSet, AnalysisSetCreate, AnalysisSetUpdate, ShareResponse, AnalysisGroup
 from app.services.ai_service import LLMAIError, answer_financial_question, generate_financial_summary
 from app.services.financial_service import get_pl_data
 from app.services.ppt_service import generate_analysis_ppt
@@ -78,6 +78,7 @@ async def create_analysis_set(body: AnalysisSetCreate):
                 "name": body.name,
                 "owner_id": None,
                 "company_codes": body.company_codes,
+                "group_id": body.group_id,
             })
             .execute()
         )
@@ -138,6 +139,35 @@ async def get_analysis_set(set_id: str):
     return res.data[0]
 
 
+class SetGroupRequest(BaseModel):
+    group_id: Optional[str] = None
+
+
+@router.patch("/analysis-sets/{set_id}/group", response_model=AnalysisSet)
+async def set_analysis_set_group(set_id: str, body: SetGroupRequest):
+    """분석 세트 그룹 지정/해제 (group_id만 변경)"""
+    supabase = get_supabase_client()
+    group_id = body.group_id  # None이면 그룹 해제, 문자열이면 지정
+    try:
+        updated = (
+            supabase.table("analysis_sets")
+            .update({"group_id": group_id})
+            .eq("id", set_id)
+            .execute()
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "DB_UNAVAILABLE", "message": "데이터베이스에 일시적 오류가 발생했습니다.", "status_code": 503},
+        )
+    if not updated.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "ANALYSIS_SET_NOT_FOUND", "message": "분석 세트를 찾을 수 없습니다.", "status_code": 404},
+        )
+    return updated.data[0]
+
+
 @router.patch("/analysis-sets/{set_id}", response_model=AnalysisSet)
 async def update_analysis_set(set_id: str, body: AnalysisSetUpdate):
     """분석 세트 수정"""
@@ -193,6 +223,8 @@ async def update_analysis_set(set_id: str, body: AnalysisSetUpdate):
         update_data["name"] = body.name
     if body.company_codes is not None:
         update_data["company_codes"] = body.company_codes
+    if "group_id" in body.model_fields_set:
+        update_data["group_id"] = body.group_id  # None이면 그룹 해제
 
     if not update_data:
         return existing

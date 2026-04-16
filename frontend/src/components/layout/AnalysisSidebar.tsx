@@ -1,15 +1,15 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Trash2, Loader2, Pencil, ChevronRight, ChevronDown, FolderPlus, Folder, FolderOpen } from 'lucide-react'
-import { useMutation } from '@tanstack/react-query'
+import { Trash2, Pencil, ChevronRight, ChevronDown, FolderPlus, Folder, FolderOpen } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAnalysisSets } from '@/hooks/use-analysis-sets'
 import { useAnalysisGroups } from '@/hooks/use-analysis-groups'
-import { exportAnalysisSetPpt, updateAnalysisSet } from '@/lib/api'
+import { setAnalysisSetGroup } from '@/lib/api'
 import { ShareDialog } from '@/components/layout/ShareDialog'
 import type { AnalysisSetData, AnalysisGroupData } from '@/lib/api'
 
@@ -28,7 +28,7 @@ export function AnalysisSidebar({
   onEdit,
   onDelete,
 }: AnalysisSidebarProps) {
-  const { analysisSets, isLoading: setsLoading, saveSet, updateSet } = useAnalysisSets()
+  const { analysisSets, isLoading: setsLoading, saveSet } = useAnalysisSets()
   const { groups, createGroup, renameGroup, deleteGroup } = useAnalysisGroups()
 
   const [saveOpen, setSaveOpen] = useState(false)
@@ -86,14 +86,6 @@ export function AnalysisSidebar({
     }
   }
 
-  // 세트를 그룹으로 이동
-  async function handleMoveSet(setId: string, groupId: string | null) {
-    try {
-      await updateSet.mutateAsync({ id: setId, groupId })
-    } catch {
-      toast.error('이동에 실패했습니다.')
-    }
-  }
 
   const isLoading = setsLoading
 
@@ -133,7 +125,7 @@ export function AnalysisSidebar({
       <div className="flex-1 overflow-y-auto py-2">
         {isLoading ? (
           <div className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground">
-            <Loader2 size={12} className="animate-spin" />
+            <span className="animate-spin inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full" />
             불러오는 중...
           </div>
         ) : (
@@ -154,7 +146,6 @@ export function AnalysisSidebar({
                   onLoad={onLoad}
                   onEdit={onEdit}
                   onDelete={onDelete}
-                  onMoveSet={handleMoveSet}
                   onRenameGroup={(name) => renameGroup.mutate({ id: group.id, name })}
                   onDeleteGroup={() => {
                     if (window.confirm(`'${group.name}' 그룹을 삭제하시겠습니까?\n그룹 내 세트는 미분류로 이동됩니다.`)) {
@@ -183,7 +174,6 @@ export function AnalysisSidebar({
                       onLoad={onLoad}
                       onEdit={onEdit}
                       onDelete={onDelete}
-                      onMoveSet={handleMoveSet}
                     />
                   ))}
                 </ul>
@@ -296,14 +286,13 @@ interface GroupSectionProps {
   onLoad: (setId: string) => void
   onEdit: (set: AnalysisSetData) => void
   onDelete: (setId: string) => void
-  onMoveSet: (setId: string, groupId: string | null) => void
   onRenameGroup: (name: string) => void
   onDeleteGroup: () => void
 }
 
 function GroupSection({
   group, sets, collapsed, activeSetId, allGroups,
-  onToggle, onLoad, onEdit, onDelete, onMoveSet, onRenameGroup, onDeleteGroup,
+  onToggle, onLoad, onEdit, onDelete, onRenameGroup, onDeleteGroup,
 }: GroupSectionProps) {
   const [renaming, setRenaming] = useState(false)
   const [renameName, setRenameName] = useState(group.name)
@@ -383,7 +372,6 @@ function GroupSection({
                 onLoad={onLoad}
                 onEdit={onEdit}
                 onDelete={onDelete}
-                onMoveSet={onMoveSet}
               />
             ))
           )}
@@ -403,10 +391,9 @@ interface SidebarItemProps {
   onLoad: (setId: string) => void
   onEdit: (set: AnalysisSetData) => void
   onDelete: (setId: string) => void
-  onMoveSet: (setId: string, groupId: string | null) => void
 }
 
-function SidebarItem({ set, isActive, allGroups, currentGroupId, onLoad, onEdit, onDelete, onMoveSet }: SidebarItemProps) {
+function SidebarItem({ set, isActive, allGroups, currentGroupId, onLoad, onEdit, onDelete }: SidebarItemProps) {
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -422,20 +409,13 @@ function SidebarItem({ set, isActive, allGroups, currentGroupId, onLoad, onEdit,
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showMoveMenu])
 
-  const pptMutation = useMutation({
-    mutationFn: () => exportAnalysisSetPpt(set.id),
-    onSuccess: (blob) => {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${set.name}_${new Date().toISOString().slice(0, 10)}.pptx`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-      toast.success('PPT 파일이 다운로드되었습니다')
+  const queryClient = useQueryClient()
+  const moveSetMutation = useMutation({
+    mutationFn: ({ groupId }: { groupId: string | null }) => setAnalysisSetGroup(set.id, groupId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['analysis-sets'] })
     },
-    onError: () => toast.error('내보내기에 실패했습니다.'),
+    onError: () => toast.error('그룹 이동에 실패했습니다.'),
   })
 
   // 이동 가능한 그룹 목록 (현재 그룹 제외)
@@ -469,14 +449,6 @@ function SidebarItem({ set, isActive, allGroups, currentGroupId, onLoad, onEdit,
       <div className={`absolute right-1 top-1/2 -translate-y-1/2 items-center gap-0.5 bg-background/90 rounded ${showMoveMenu ? 'flex' : 'hidden group-hover:flex'}`}>
         <ShareDialog setId={set.id} />
         <button
-          onClick={() => pptMutation.mutate()}
-          disabled={pptMutation.isPending}
-          className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground text-[10px] disabled:opacity-50"
-          title="PPT"
-        >
-          {pptMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : 'PPT'}
-        </button>
-        <button
           onClick={() => onEdit(set)}
           className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
           title="수정"
@@ -499,7 +471,7 @@ function SidebarItem({ set, isActive, allGroups, currentGroupId, onLoad, onEdit,
                 {currentGroupId && (
                   <button
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent"
-                    onClick={() => { onMoveSet(set.id, null); setShowMoveMenu(false) }}
+                    onClick={() => { moveSetMutation.mutate({ groupId: null }); setShowMoveMenu(false) }}
                   >
                     미분류로 이동
                   </button>
@@ -508,7 +480,7 @@ function SidebarItem({ set, isActive, allGroups, currentGroupId, onLoad, onEdit,
                   <button
                     key={g.id}
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent"
-                    onClick={() => { onMoveSet(set.id, g.id); setShowMoveMenu(false) }}
+                    onClick={() => { moveSetMutation.mutate({ groupId: g.id }); setShowMoveMenu(false) }}
                   >
                     {g.name}
                   </button>

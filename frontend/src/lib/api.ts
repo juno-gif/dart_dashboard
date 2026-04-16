@@ -170,6 +170,10 @@ export async function updateAnalysisSet(
   return apiPatch<AnalysisSetData>(`/api/v1/analysis-sets/${id}`, data)
 }
 
+export async function setAnalysisSetGroup(id: string, groupId: string | null): Promise<AnalysisSetData> {
+  return apiPatch<AnalysisSetData>(`/api/v1/analysis-sets/${id}/group`, { group_id: groupId })
+}
+
 export async function deleteAnalysisSet(id: string): Promise<void> {
   return apiDelete(`/api/v1/analysis-sets/${id}`)
 }
