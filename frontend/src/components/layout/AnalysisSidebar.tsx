@@ -495,7 +495,7 @@ function SidebarItem({ set, isActive, allGroups, currentGroupId, onLoad, onEdit,
               <Folder size={12} />
             </button>
             {showMoveMenu && (
-              <div className="absolute right-0 top-full z-50 bg-popover border rounded-md shadow-md py-1 min-w-[120px]">
+              <div className="absolute right-0 bottom-full mb-1 z-50 bg-popover border rounded-md shadow-md py-1 min-w-[120px]">
                 {currentGroupId && (
                   <button
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent"
