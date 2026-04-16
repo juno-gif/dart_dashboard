@@ -6,6 +6,7 @@ DART 장애 시 DB 캐시로 폴백, DB도 없으면 예외 re-raise
 """
 import logging
 import time
+from typing import Optional
 
 from app.core.database import get_supabase_client
 from app.services.dart_client import sync_company_financials
@@ -36,7 +37,7 @@ def _needs_sync(corp_code: str, rows: list, years: int) -> bool:
     return time.time() - last > _SYNC_COOLDOWN
 
 
-def get_pl_data(corp_code: str, years: int = 5, fs_div: str | None = None) -> list:
+def get_pl_data(corp_code: str, years: int = 5, fs_div: Optional[str] = None) -> list:
     """DB-First P&L 조회.
     DB에 데이터 없거나 연도 부족 시 DART sync 후 재조회.
     DART 장애 시: DB 캐시 있으면 반환, 없으면 예외 re-raise (→ 503).
@@ -73,7 +74,7 @@ def _query_pl(supabase, corp_code: str, years: int) -> list:
     return res.data or []
 
 
-def get_bs_data(corp_code: str, years: int = 5, fs_div: str | None = None) -> list:
+def get_bs_data(corp_code: str, years: int = 5, fs_div: Optional[str] = None) -> list:
     """DB-First B/S 조회.
     DB에 데이터 없거나 연도 부족 시 DART sync 후 재조회.
     DART 장애 시: DB 캐시 있으면 반환, 없으면 예외 re-raise (→ 503).
@@ -109,7 +110,7 @@ def _query_bs(supabase, corp_code: str, years: int) -> list:
     return res.data or []
 
 
-def get_cf_data(corp_code: str, years: int = 5, fs_div: str | None = None) -> list:
+def get_cf_data(corp_code: str, years: int = 5, fs_div: Optional[str] = None) -> list:
     """DB-First CF 조회.
     DB에 데이터 없거나 연도 부족 시 DART sync 후 재조회.
     DART 장애 시: DB 캐시 있으면 반환, 없으면 예외 re-raise (→ 503).
@@ -196,7 +197,7 @@ def _prefer_fs_div_with_fallback(rows: list, years: int, preferred: str) -> list
     return _select_recent_years_all(list(best.values()), years)
 
 
-def _apply_fs_div_filter(rows: list, years: int, fs_div: str | None) -> list:
+def _apply_fs_div_filter(rows: list, years: int, fs_div: Optional[str]) -> list:
     """fs_div 파라미터에 따라 필터링:
     - None → CFS 우선 dedup (기본값, 비교 모드 호환)
     - "ALL" → CFS+OFS 모두 반환

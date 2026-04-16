@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import logging
+from typing import Optional
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
@@ -73,7 +74,7 @@ def _get_stock_info(stock_code: str) -> dict | None:
     return None
 
 
-def _get_recent_price(stock_code: str) -> float | None:
+def _get_recent_price(stock_code: str) -> Optional[float]:
     """최근 거래일 종가 조회 (최근 10거래일 내)."""
     import FinanceDataReader as fdr
     from datetime import timedelta, date
@@ -88,7 +89,7 @@ def _get_recent_price(stock_code: str) -> float | None:
         return None
 
 
-def _get_year_end_price(stock_code: str, year: int) -> float | None:
+def _get_year_end_price(stock_code: str, year: int) -> Optional[float]:
     """연말 종가 조회 (FinanceDataReader)."""
     import FinanceDataReader as fdr
     try:
@@ -135,7 +136,7 @@ def get_valuation_data(
         shares = info["shares"]
 
         # 현재 PBR
-        current_pbr: float | None = None
+        current_pbr: Optional[float] = None
         if equity_by_year:
             latest_year = max(equity_by_year.keys())
             equity = equity_by_year.get(latest_year)
@@ -143,7 +144,7 @@ def get_valuation_data(
                 current_pbr = round(marcap / equity, 2)
 
         # 현재 PER
-        current_per: float | None = None
+        current_per: Optional[float] = None
         if income_by_year:
             latest_year = max(income_by_year.keys())
             net_income = income_by_year.get(latest_year)
@@ -175,7 +176,7 @@ def get_valuation_data(
 
 def _compute_yearly(
     stock_code: str,
-    shares: float | None,
+    shares: Optional[float],
     equity_by_year: dict,
     income_by_year: dict,
     years: int,
@@ -197,7 +198,7 @@ def _compute_yearly(
         mkt_cap = price * shares
         pbr = round(mkt_cap / equity, 2) if equity > 0 else None
         net_income = income_by_year.get(yr_str)
-        per: float | None = None
+        per: Optional[float] = None
         if net_income and net_income > 0:
             per = round(mkt_cap / net_income, 2)
         if pbr and pbr > 0:

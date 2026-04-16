@@ -5,6 +5,7 @@ GET /api/v1/companies/compare?codes=005930,035720&type=pl
 [Source: architecture.md - API & Communication Patterns]
 """
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -76,7 +77,7 @@ def get_financials(
     corp_code: str,
     years: int = 10,
     chart_type: str = Query("pl", alias="type"),
-    fs_div: str | None = Query(None),
+    fs_div: Optional[str] = Query(None),
     _: object = Depends(get_current_user),
 ):
     """기업 재무 데이터 조회 (DB-First)

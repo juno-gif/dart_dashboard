@@ -96,7 +96,7 @@ export default function DashboardPage() {
     setFsDivFilter('CFS')
   }, [detailCorpCode])
 
-  const { data: allFinancials = [], isLoading: singleLoading, error: singleError } = useFinancialData(
+  const { data: allFinancials = [], isLoading: singleLoading, isLoadingMore: singleLoadingMore, error: singleError } = useFinancialData(
     detailCorpCode,
     10,
     chartType
@@ -338,7 +338,16 @@ export default function DashboardPage() {
                     />
                   </div>
                 </div>
-                {!singleLoading && financials.length === 0 && (
+                {/* 과거 데이터 로딩 중 배너 */}
+                {singleLoadingMore && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-muted/50 border text-xs text-muted-foreground">
+                    <div className="w-3 h-3 border-2 border-muted-foreground/40 border-t-muted-foreground rounded-full animate-spin shrink-0" />
+                    최근 3년 데이터를 먼저 표시합니다. 과거 데이터를 불러오는 중...
+                  </div>
+                )}
+
+                {/* 데이터 없음 (로딩 완전히 끝난 후에만 표시) */}
+                {!singleLoading && !singleLoadingMore && financials.length === 0 && (
                   <div className="rounded-lg border bg-muted/40 p-6 text-center space-y-3">
                     <p className="text-sm text-muted-foreground">수집된 재무 데이터가 없습니다.</p>
                     <button
