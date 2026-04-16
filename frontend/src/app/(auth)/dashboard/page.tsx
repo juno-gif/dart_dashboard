@@ -199,7 +199,7 @@ export default function DashboardPage() {
 
         {/* Row 2: 선택된 기업 chips (기업 있을 때만) */}
         {selectedCompanies.length > 0 && (
-          <div className="flex items-center gap-2 px-4 pb-2.5 overflow-x-auto">
+          <div className="flex items-center gap-2 pl-[264px] pr-4 pb-2.5 overflow-x-auto">
             {isCompareMode && (
               <span className="text-xs text-muted-foreground shrink-0">클릭하면 상세 확인</span>
             )}
