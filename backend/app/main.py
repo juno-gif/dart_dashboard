@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(name)s: %(messa
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import analysis_sets, companies, financials, health, shared, sync, users
+from app.api.v1 import analysis_groups, analysis_sets, companies, financials, health, shared, sync, users
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -71,4 +71,5 @@ app.include_router(companies.router, prefix="/api/v1")
 app.include_router(financials.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
 app.include_router(analysis_sets.router, prefix="/api/v1")
+app.include_router(analysis_groups.router, prefix="/api/v1")
 app.include_router(shared.router, prefix="/api/v1")
