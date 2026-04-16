@@ -1,10 +1,12 @@
 """
 FastAPI 애플리케이션 진입점
-- CORS: Vercel 배포 도메인만 허용 (ALLOWED_ORIGINS 환경변수)
-- Lifespan: APScheduler 시작/종료 (Story 3.3 구현 완료)
+- CORS: 전체 공개 앱이므로 모든 origin 허용
+- Lifespan: DART 웜업 (첫 검색 지연 방지)
+- 일일 동기화: APScheduler 대신 Supabase pg_cron + pg_net → POST /api/v1/sync/all
 - 라우터: health, sync, companies, financials, users, analysis_sets
 [Source: architecture.md - Infrastructure & Deployment]
 """
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -23,16 +25,11 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """
     애플리케이션 생명주기 관리
-    - 시작 시: APScheduler 초기화 (Story 3.3) + DART 웜업 (첫 검색 지연 방지)
-    - 종료 시: scheduler.shutdown()으로 정리
+    - 시작 시: DART 웜업 (첫 검색 지연 방지)
+    - 일일 동기화: Supabase pg_cron이 POST /api/v1/sync/all 호출
     """
-    import asyncio
-    from app.scheduler.tasks import start_scheduler
     from app.services.dart_client import _get_dart
 
-    scheduler = start_scheduler()
-
-    # DART 웜업을 백그라운드 태스크로 실행 — yield 이전 블로킹 방지 (Render 헬스체크 타임아웃 해결)
     async def _warmup():
         loop = asyncio.get_event_loop()
         try:
@@ -42,10 +39,7 @@ async def lifespan(app: FastAPI):
             logger.warning(f"[STARTUP] DART 웜업 실패 (첫 검색이 느릴 수 있음): {e}")
 
     asyncio.create_task(_warmup())
-
     yield
-    scheduler.shutdown(wait=False)
-    logger.info("[SCHEDULER] APScheduler 종료")
 
 
 app = FastAPI(

@@ -3,7 +3,6 @@ uvicorn[standard]>=0.29.0
 pydantic-settings>=2.0.0
 python-dotenv>=1.0.0
 supabase>=2.0.0
-APScheduler>=3.10.0
 OpenDartReader>=0.2.3
 pandas>=2.0.0
 python-pptx>=1.0.0

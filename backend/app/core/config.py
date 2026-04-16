@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     FRONTEND_URL: str = "http://localhost:3000"
     GOOGLE_API_KEY: str = ""
+    # pg_cron → 백엔드 sync 엔드포인트 인증용 시크릿 (랜덤 문자열, 미설정 시 sync/all 비활성화)
+    SYNC_SECRET_KEY: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
