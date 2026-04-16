@@ -76,9 +76,14 @@ export function AnalysisSidebar({
   async function handleCreateGroup(e: React.FormEvent) {
     e.preventDefault()
     if (!newGroupName.trim()) return
-    await createGroup.mutateAsync(newGroupName.trim())
-    setNewGroupOpen(false)
-    setNewGroupName('')
+    try {
+      await createGroup.mutateAsync(newGroupName.trim())
+      setNewGroupOpen(false)
+      setNewGroupName('')
+    } catch (err: unknown) {
+      const apiErr = err as { message?: string }
+      toast.error(apiErr?.message || '그룹 생성에 실패했습니다.')
+    }
   }
 
   // 세트를 그룹으로 이동

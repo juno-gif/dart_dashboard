@@ -71,15 +71,35 @@ class UpdateRoleRequest(BaseModel):
 
 
 # ── Story 3.1: 분석 세트 저장 및 불러오기 ───────────────
+# ── 분석 그룹 ────────────────────────────────────────────
+class AnalysisGroup(BaseModel):
+    id: str
+    name: str
+    display_order: int = 0
+    created_at: str
+    updated_at: Optional[str] = None
+
+
+class AnalysisGroupCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+
+
+class AnalysisGroupUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    display_order: Optional[int] = None
+
+
 class AnalysisSetCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     company_codes: list[str] = Field(..., min_length=1)
+    group_id: Optional[str] = None
 
 
 # ── Story 3.2: 분석 세트 수정 ───────────────────────────
 class AnalysisSetUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     company_codes: Optional[list[str]] = Field(None, min_length=1)
+    group_id: Optional[str] = None  # None = 그룹 없음으로 변경, 미포함 시 유지
 
 
 class AnalysisSet(BaseModel):
@@ -88,6 +108,7 @@ class AnalysisSet(BaseModel):
     owner_id: Optional[str] = None
     company_codes: list[str]
     share_token: Optional[str] = None
+    group_id: Optional[str] = None
     created_at: str
     updated_at: str
 

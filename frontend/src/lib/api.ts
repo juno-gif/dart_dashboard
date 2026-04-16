@@ -116,7 +116,7 @@ export interface AnalysisGroupData {
   name: string
   display_order: number
   created_at: string
-  updated_at: string
+  updated_at: string | null
 }
 
 export async function listAnalysisGroups(): Promise<AnalysisGroupData[]> {
