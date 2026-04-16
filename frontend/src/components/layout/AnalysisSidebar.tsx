@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Trash2, Loader2, Pencil, ChevronRight, ChevronDown, FolderPlus, Folder, FolderOpen } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -408,6 +408,19 @@ interface SidebarItemProps {
 
 function SidebarItem({ set, isActive, allGroups, currentGroupId, onLoad, onEdit, onDelete, onMoveSet }: SidebarItemProps) {
   const [showMoveMenu, setShowMoveMenu] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!showMoveMenu) return
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMoveMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showMoveMenu])
 
   const pptMutation = useMutation({
     mutationFn: () => exportAnalysisSetPpt(set.id),
@@ -443,14 +456,17 @@ function SidebarItem({ set, isActive, allGroups, currentGroupId, onLoad, onEdit,
           <span className={`text-sm truncate flex-1 ${isActive ? 'font-medium' : ''}`}>
             {set.name}
           </span>
-          <span className="text-[11px] text-muted-foreground shrink-0 group-hover:hidden">
-            {set.company_codes.length}개
-          </span>
+          {/* 드롭다운 열려있을 때는 숨기지 않음 */}
+          {!showMoveMenu && (
+            <span className="text-[11px] text-muted-foreground shrink-0 group-hover:hidden">
+              {set.company_codes.length}개
+            </span>
+          )}
         </div>
       </button>
 
-      {/* 호버 액션 */}
-      <div className="absolute right-1 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5 bg-background/90 rounded">
+      {/* 호버 액션 — 드롭다운 열려있으면 강제 표시 */}
+      <div className={`absolute right-1 top-1/2 -translate-y-1/2 items-center gap-0.5 bg-background/90 rounded ${showMoveMenu ? 'flex' : 'hidden group-hover:flex'}`}>
         <ShareDialog setId={set.id} />
         <button
           onClick={() => pptMutation.mutate()}
@@ -470,19 +486,16 @@ function SidebarItem({ set, isActive, allGroups, currentGroupId, onLoad, onEdit,
 
         {/* 그룹 이동 */}
         {(allGroups.length > 0) && (
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               onClick={(e) => { e.stopPropagation(); setShowMoveMenu((v) => !v) }}
-              className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground text-[10px]"
+              className={`p-1 rounded hover:bg-accent text-[10px] ${showMoveMenu ? 'bg-accent text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
               title="그룹으로 이동"
             >
               <Folder size={12} />
             </button>
             {showMoveMenu && (
-              <div
-                className="absolute right-0 top-full mt-1 z-50 bg-popover border rounded-md shadow-md py-1 min-w-[120px]"
-                onMouseLeave={() => setShowMoveMenu(false)}
-              >
+              <div className="absolute right-0 top-full z-50 bg-popover border rounded-md shadow-md py-1 min-w-[120px]">
                 {currentGroupId && (
                   <button
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-accent"
