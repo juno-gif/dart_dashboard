@@ -438,8 +438,8 @@ _BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
     "영업수익": "revenue",
     "영업수익(매출액)": "revenue",  # 카카오게임즈 등 (영업수익+매출액 복합 표기)
     "매출": "revenue",
-    "이자수익": "revenue",    # 은행업 하위항목 (토스뱅크 등)
-    "순이자손익": "revenue",  # 은행업 최상위 항목 (이자수익-이자비용)
+    "이자수익": "revenue",    # 은행업 IS·CIS 항목 — CF에서 등장하면 매핑 무시 (아래 _IS_ONLY_REVENUE_NMS 참조)
+    "순이자손익": "revenue",  # 은행업 IS·CIS 최상위 항목 (이자수익-이자비용)
     "영업이익": "operating_profit",
     "영업이익(손실)": "operating_profit",
     "영업손실": "operating_profit",
@@ -474,6 +474,11 @@ _BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
     "재무활동으로인한현금흐름": "financing_cf",
     "재무활동현금흐름": "financing_cf",
 }
+
+
+# 이자수익·순이자손익은 IS·CIS(손익계산서)에서만 revenue — CF(현금흐름표)의 동명 항목이 revenue로
+# 잘못 매핑되는 버그 방지 (예: 사이냅소프트 CFS CF의 이자수익 11억이 매출로 기록되는 문제)
+_IS_ONLY_REVENUE_NMS: frozenset[str] = frozenset({"이자수익", "순이자손익"})
 
 
 def sync_company_financials(corp_code: str, years: int = 5) -> dict:
@@ -556,6 +561,11 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
                 or mappings.get(account_nm_no_prefix)
                 or mappings.get(account_nm_no_note)
             )
+            # 이자수익·순이자손익은 CF(현금흐름표)에서 등장해도 revenue로 매핑하지 않음
+            sj_div = str(row.get("sj_div", "")).upper()
+            if account_key == "revenue" and account_nm_no_note in _IS_ONLY_REVENUE_NMS and sj_div not in ("IS", "CIS"):
+                account_key = None
+
             if account_key is None:
                 account_key = account_nm[:200]  # 원본명 그대로 (DB 컬럼 길이 초과 방지)
                 logger.warning(f"Unmapped account: '{account_nm}' for {corp_code}/{bsns_year}")
@@ -563,7 +573,6 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
             # 분기/반기 보고서의 IS·CF 계정은 누적(YTD) 금액 사용
             # thstrm_amount = 해당 분기 단독 금액 (3개월치)
             # thstrm_add_amount = 당해 연도 누적 금액 → IS·CF에 올바른 값
-            sj_div = str(row.get("sj_div", ""))
             row_reprt_code = str(row.get("reprt_code", "11011"))
             use_cumulative = row_reprt_code in ("11012", "11013", "11014") and sj_div in ("IS", "CIS", "CF")
             if use_cumulative:

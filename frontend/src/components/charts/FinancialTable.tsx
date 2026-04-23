@@ -130,6 +130,8 @@ function TableGrid({
     map.set(`${row.account_key}__${row.bsns_year}`, row.amount)
   }
 
+  const isPL = accountKeys.includes('revenue') && accountKeys.includes('operating_profit') && accountKeys.includes('net_income')
+
   return (
     <div className="overflow-x-auto rounded-md border text-sm">
       <table className="w-full">
@@ -160,6 +162,36 @@ function TableGrid({
               })}
             </tr>
           ))}
+          {isPL && (
+            <>
+              <tr className="border-t">
+                <td className="px-3 py-2 text-muted-foreground">영업이익률</td>
+                {years.map((y) => {
+                  const revenue = map.get(`revenue__${y}`)
+                  const opProfit = map.get(`operating_profit__${y}`)
+                  const margin = revenue && opProfit !== undefined ? (opProfit / revenue) * 100 : null
+                  return (
+                    <td key={y} className="px-3 py-2 text-right tabular-nums">
+                      {margin !== null ? `${margin.toFixed(1)}%` : '-'}
+                    </td>
+                  )
+                })}
+              </tr>
+              <tr className="bg-muted/20">
+                <td className="px-3 py-2 text-muted-foreground">당기순이익률</td>
+                {years.map((y) => {
+                  const revenue = map.get(`revenue__${y}`)
+                  const netIncome = map.get(`net_income__${y}`)
+                  const margin = revenue && netIncome !== undefined ? (netIncome / revenue) * 100 : null
+                  return (
+                    <td key={y} className="px-3 py-2 text-right tabular-nums">
+                      {margin !== null ? `${margin.toFixed(1)}%` : '-'}
+                    </td>
+                  )
+                })}
+              </tr>
+            </>
+          )}
           {valByYear && (
             <>
               <tr className="border-t">
