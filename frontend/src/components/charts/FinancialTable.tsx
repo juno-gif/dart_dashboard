@@ -27,8 +27,7 @@ const ACCOUNT_ORDER: Record<FinancialType, string[]> = {
 }
 
 function formatBillion(amount: number): string {
-  const billion = amount / 100_000_000
-  return billion.toLocaleString('ko-KR', { maximumFractionDigits: 1 })
+  return Math.round(amount / 100_000_000).toLocaleString('ko-KR')
 }
 
 interface Props {
