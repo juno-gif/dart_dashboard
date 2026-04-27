@@ -146,15 +146,29 @@ def _query_cf(supabase, corp_code: str, years: int) -> list:
     return res.data or []
 
 
+_REPRT_PRIORITY = {"11011": 0, "11012": 1, "11013": 2, "11014": 3}
+
+
+def _reprt_beats(new_row: dict, existing: dict) -> bool:
+    """new_row가 existing보다 우선되어야 하면 True.
+    우선순위: CFS > OFS, 같은 fs_div면 reprt_code 낮을수록 우선 (11011=사업보고서 > 11014=3Q).
+    """
+    new_cfs = new_row["fs_div"] == "CFS"
+    ex_cfs = existing["fs_div"] == "CFS"
+    if new_cfs != ex_cfs:
+        return new_cfs  # CFS 우선
+    new_p = _REPRT_PRIORITY.get(new_row.get("reprt_code", ""), 9)
+    ex_p = _REPRT_PRIORITY.get(existing.get("reprt_code", ""), 9)
+    return new_p < ex_p
+
+
 def _prefer_cfs(rows: list, years: int) -> list:
-    """동일 연도+계정에 CFS/OFS 둘 다 있으면 CFS 선택, 최근 N연도만 반환"""
+    """동일 연도+계정에 CFS/OFS 둘 다 있으면 CFS 선택, reprt_code 낮은 쪽(사업보고서) 우선, 최근 N연도만 반환"""
     best: dict = {}
     for row in rows:
         key = (row["bsns_year"], row["account_key"])
         existing = best.get(key)
-        if existing is None or (
-            row["fs_div"] == "CFS" and existing["fs_div"] != "CFS"
-        ):
+        if existing is None or _reprt_beats(row, existing):
             best[key] = row
 
     # 최근 N개 연도만 추출
@@ -192,8 +206,13 @@ def _prefer_fs_div_with_fallback(rows: list, years: int, preferred: str) -> list
         is_fallback = row["fs_div"] != preferred
         if existing is None:
             best[key] = {**row, "is_fallback": is_fallback}
-        elif not is_fallback and existing.get("is_fallback", True):
-            best[key] = {**row, "is_fallback": False}
+        else:
+            ex_fallback = existing.get("is_fallback", True)
+            # preferred fs_div 우선, 같은 fs_div 내에서는 reprt_code 낮은 쪽(사업보고서) 우선
+            new_prio = _REPRT_PRIORITY.get(row.get("reprt_code", ""), 9)
+            ex_prio = _REPRT_PRIORITY.get(existing.get("reprt_code", ""), 9)
+            if (not is_fallback and ex_fallback) or (is_fallback == ex_fallback and new_prio < ex_prio):
+                best[key] = {**row, "is_fallback": is_fallback}
     return _select_recent_years_all(list(best.values()), years)
 
 
