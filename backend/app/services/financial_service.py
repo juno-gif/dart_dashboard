@@ -183,8 +183,23 @@ def _prefer_cfs(rows: list, years: int) -> list:
 
 
 def _select_recent_years_all(rows: list, years: int) -> list:
-    """최근 N개 연도의 모든 행(CFS+OFS) 반환 — 중복 제거 없음"""
-    sorted_rows = sorted(rows, key=lambda r: r["bsns_year"], reverse=True)
+    """최근 N개 연도의 모든 행(CFS+OFS) 반환.
+    동일 (year, account_key, fs_div) 내 reprt_code 우선순위 적용 (11011 > 11012 > 11013 > 11014).
+    """
+    # 동일 (year, account_key, fs_div)에서 가장 완전한 reprt_code 하나만 남김
+    best: dict = {}
+    for row in rows:
+        key = (row["bsns_year"], row["account_key"], row["fs_div"])
+        existing = best.get(key)
+        if existing is None:
+            best[key] = row
+        else:
+            new_p = _REPRT_PRIORITY.get(row.get("reprt_code", ""), 9)
+            ex_p = _REPRT_PRIORITY.get(existing.get("reprt_code", ""), 9)
+            if new_p < ex_p:
+                best[key] = row
+
+    sorted_rows = sorted(best.values(), key=lambda r: r["bsns_year"], reverse=True)
     years_seen: set = set()
     filtered = []
     for row in sorted_rows:
