@@ -123,7 +123,7 @@ function buildTsv(params: {
     const label = key === 'revenue' ? revenueLabel : (ACCOUNT_LABELS[key] ?? key)
     rows.push([label, ...years.map((y) => {
       const amount = map.get(`${key}__${y}`)
-      return amount !== undefined ? String(Math.round(amount / 100_000_000)) : '-'
+      return amount !== undefined ? (amount / 100_000_000).toFixed(2) : '-'
     })])
   }
 
