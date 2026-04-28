@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { formatYearLabel, getRevenueLabel } from '@/lib/format'
 import type { ValuationData } from '@/lib/api'
 import type { FinancialStatement, FinancialType } from '@/types'
@@ -102,6 +103,63 @@ export function FinancialTable({ data, chartType, companies, valuationData }: Pr
   )
 }
 
+function buildTsv(params: {
+  years: string[]
+  yearReprtMap: Map<string, string>
+  accountKeys: string[]
+  revenueLabel: string
+  map: Map<string, number>
+  isPL: boolean
+  valByYear: Map<string, { pbr: number; per: number | null }> | null
+  currentPbr: number | null
+  currentPer: number | null
+}): string {
+  const { years, yearReprtMap, accountKeys, revenueLabel, map, isPL, valByYear, currentPbr, currentPer } = params
+  const rows: string[][] = []
+
+  rows.push(['구분', ...years.map((y) => formatYearLabel(y, yearReprtMap.get(y) ?? ''))])
+
+  for (const key of accountKeys) {
+    const label = key === 'revenue' ? revenueLabel : (ACCOUNT_LABELS[key] ?? key)
+    rows.push([label, ...years.map((y) => {
+      const amount = map.get(`${key}__${y}`)
+      return amount !== undefined ? String(Math.round(amount / 100_000_000)) : '-'
+    })])
+  }
+
+  if (isPL) {
+    rows.push(['영업이익률', ...years.map((y) => {
+      const revenue = map.get(`revenue__${y}`)
+      const op = map.get(`operating_profit__${y}`)
+      const m = revenue && op !== undefined ? (op / revenue) * 100 : null
+      return m !== null ? `${m.toFixed(1)}%` : '-'
+    })])
+    rows.push(['당기순이익률', ...years.map((y) => {
+      const revenue = map.get(`revenue__${y}`)
+      const net = map.get(`net_income__${y}`)
+      const m = revenue && net !== undefined ? (net / revenue) * 100 : null
+      return m !== null ? `${m.toFixed(1)}%` : '-'
+    })])
+  }
+
+  if (valByYear) {
+    rows.push(['PBR', ...years.map((y) => {
+      const val = valByYear.get(y)
+      const isLatest = y === years[years.length - 1]
+      const pbr = isLatest && currentPbr != null ? currentPbr : val?.pbr
+      return pbr != null ? `${pbr.toFixed(2)}x` : '-'
+    })])
+    rows.push(['PER', ...years.map((y) => {
+      const val = valByYear.get(y)
+      const isLatest = y === years[years.length - 1]
+      const per = isLatest && currentPer != null ? currentPer : val?.per
+      return per != null ? `${per.toFixed(1)}x` : '-'
+    })])
+  }
+
+  return rows.map((r) => r.join('\t')).join('\n')
+}
+
 function TableGrid({
   data,
   accountKeys,
@@ -123,6 +181,8 @@ function TableGrid({
   currentPbr?: number | null
   currentPer?: number | null
 }) {
+  const [copied, setCopied] = useState(false)
+
   // (account_key, bsns_year) → amount 맵
   const map = new Map<string, number>()
   for (const row of data) {
@@ -131,7 +191,24 @@ function TableGrid({
 
   const isPL = accountKeys.includes('revenue') && accountKeys.includes('operating_profit') && accountKeys.includes('net_income')
 
+  const handleCopy = () => {
+    const tsv = buildTsv({ years, yearReprtMap, accountKeys, revenueLabel, map, isPL, valByYear, currentPbr, currentPer })
+    navigator.clipboard.writeText(tsv).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
   return (
+    <div>
+    <div className="flex justify-end mb-1">
+      <button
+        onClick={handleCopy}
+        className="text-xs px-2 py-1 rounded border text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+      >
+        {copied ? '✓ 복사됨' : '복사'}
+      </button>
+    </div>
     <div className="overflow-x-auto rounded-md border text-sm">
       <table className="w-full">
         <thead>
@@ -223,6 +300,7 @@ function TableGrid({
           )}
         </tbody>
       </table>
+    </div>
     </div>
   )
 }
