@@ -3,7 +3,7 @@ uvicorn[standard]>=0.29.0
 pydantic-settings>=2.0.0
 python-dotenv>=1.0.0
 supabase>=2.0.0
-OpenDartReader==0.2.3
+OpenDartReader==0.2.2
 pandas>=2.0.0
 python-pptx>=1.0.0
 google-generativeai>=0.8.0
