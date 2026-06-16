@@ -102,6 +102,7 @@ export function FinancialChart({ data, isLoading, companyName, type = 'pl' }: Pr
             <XAxis
               dataKey="year"
               tick={{ fontSize: 12 }}
+              interval={0}
               tickFormatter={(y: string) => {
                 const base = formatYearLabel(y, yearReprtMap.get(y) ?? '')
                 return fallbackYears.has(y) ? `${base}(별도)` : base

@@ -108,6 +108,7 @@ export function CompareChart({ data, companies, isLoading }: Props) {
                     <XAxis
                       dataKey="year"
                       tick={{ fontSize: 12 }}
+                      interval={0}
                       tickFormatter={(y: string) => formatYearLabel(y, yearReprtMap.get(y) ?? '')}
                     />
                     <YAxis

@@ -265,7 +265,7 @@ export default function DashboardPage() {
 
         {/* 메인 콘텐츠 */}
         <main className="flex-1 overflow-y-auto">
-          <div className="p-6 max-w-4xl space-y-5">
+          <div className="p-6 max-w-7xl space-y-5">
             {/* DART 경고 배너 */}
             {(activeData.length > 0 || hasDartError) && (
               <DartWarningBanner data={activeData} hasDartError={hasDartError} />
