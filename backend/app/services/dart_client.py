@@ -288,11 +288,26 @@ def _get_financial_from_audit_report(corp_code: str, bsns_year: str) -> list[dic
         filings = dart.list(corp_code, start=start_dt, end=end_dt, kind="F")
     except Exception as e:
         logger.warning(f"[DART] 감사보고서 목록 조회 실패 corp={corp_code} year={bsns_year}: {e}")
-        return []
+        filings = None
 
     if filings is None or (hasattr(filings, "empty") and filings.empty):
-        logger.warning(f"[DART] 감사보고서 없음 corp={corp_code} year={bsns_year}")
-        return []
+        # 별도 감사보고서(F) 파일링이 없는 기업: 재무제표가 사업보고서(A) 본문에
+        # 첨부문서로 포함되는 경우가 있음 (예: JTBC) → 사업보고서로 폴백
+        logger.warning(f"[DART] 감사보고서 없음, 사업보고서 폴백 시도 corp={corp_code} year={bsns_year}")
+        try:
+            annual_filings = dart.list(corp_code, start=start_dt, end=end_dt, kind="A")
+        except Exception as e:
+            logger.warning(f"[DART] 사업보고서 목록 조회 실패 corp={corp_code} year={bsns_year}: {e}")
+            annual_filings = None
+
+        if annual_filings is None or (hasattr(annual_filings, "empty") and annual_filings.empty):
+            logger.warning(f"[DART] 사업보고서 폴백도 없음 corp={corp_code} year={bsns_year}")
+            return []
+
+        filings = annual_filings[annual_filings["report_nm"].str.contains("사업보고서", na=False)]
+        if filings.empty:
+            logger.warning(f"[DART] 사업보고서 폴백 매칭 없음 corp={corp_code} year={bsns_year}")
+            return []
 
     # 모든 감사보고서 접수번호 수집 (연결/별도가 별도 파일링인 경우 대응)
     rcp_nos: list[str] = []
