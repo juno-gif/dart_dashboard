@@ -10,6 +10,7 @@ import { useCompareFinancials } from '@/hooks/use-compare-financials'
 import { useAnalysisSets } from '@/hooks/use-analysis-sets'
 import { useValuation } from '@/hooks/use-valuation'
 import { DartWarningBanner } from '@/components/layout/DartWarningBanner'
+import { CompanyProfileCard } from '@/components/layout/CompanyProfileCard'
 import { AnalysisSidebar } from '@/components/layout/AnalysisSidebar'
 import { UpdateAnalysisSetDialog } from '@/components/layout/UpdateAnalysisSetDialog'
 import { ShareDialog } from '@/components/layout/ShareDialog'
@@ -279,6 +280,7 @@ export default function DashboardPage() {
               </>
             ) : detailCompany ? (
               <>
+                <CompanyProfileCard corpCode={detailCorpCode?.startsWith('MAN_') ? null : detailCorpCode} />
                 {isCompareMode && (
                   <button
                     onClick={() => setFocusedCorpCode(null)}

@@ -24,6 +24,17 @@ class Company(BaseModel):
     is_listed: bool = True
 
 
+# ── 기업 개요 (설립일/대표이사/주소/홈페이지/임직원수) ─────
+class CompanyProfile(BaseModel):
+    corp_code: str
+    est_dt: Optional[str] = None
+    ceo_nm: Optional[str] = None
+    adres: Optional[str] = None
+    hm_url: Optional[str] = None
+    employee_count: Optional[int] = None
+    employee_count_source: Optional[Literal["dart_report", "nps"]] = None
+
+
 class FinancialStatement(BaseModel):
     corp_code: str
     bsns_year: str

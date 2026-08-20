@@ -20,6 +20,17 @@ export interface CompanySearchResult {
   is_listed: boolean
 }
 
+// ── 기업 개요 (설립일/대표이사/주소/홈페이지/임직원수) ──
+export interface CompanyProfile {
+  corp_code: string
+  est_dt: string | null
+  ceo_nm: string | null
+  adres: string | null
+  hm_url: string | null
+  employee_count: number | null
+  employee_count_source: 'dart_report' | 'nps' | null
+}
+
 // ── 재무 데이터 (Financial Statement) ──────────────────
 export interface FinancialStatement {
   id: string

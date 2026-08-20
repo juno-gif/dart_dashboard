@@ -2,7 +2,7 @@
  * FastAPI 호출 함수 모음 (모든 API 호출은 이 파일 경유 필수)
  * 컴포넌트 내 직접 fetch 금지 — architecture.md Enforcement Guidelines #2
  */
-import type { Company, FinancialStatement } from '@/types'
+import type { Company, CompanyProfile, FinancialStatement } from '@/types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -90,6 +90,11 @@ export async function getFinancials(
   return apiGet<FinancialStatement[]>(
     `/api/v1/companies/${corpCode}/financials?${params}`
   )
+}
+
+// ── 기업 개요 (설립일/대표이사/주소/홈페이지/임직원수) ──
+export async function getCompanyProfile(corpCode: string): Promise<CompanyProfile> {
+  return apiGet<CompanyProfile>(`/api/v1/companies/${corpCode}/profile`)
 }
 
 // ── 다중 기업 비교 ──────────────────────────────────────

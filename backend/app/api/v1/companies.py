@@ -15,10 +15,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.auth import get_current_user, require_admin
 from app.core.database import get_supabase_client
-from app.models.schemas import Company, ManualCompanyCreate, ManualCompanyFinancialsResponse, ManualFinancialEntry
+from app.models.schemas import Company, CompanyProfile, ManualCompanyCreate, ManualCompanyFinancialsResponse, ManualFinancialEntry
+from app.services import dart_client
 from app.services.dart_client import search_companies as dart_search_companies
 
 router = APIRouter()
+
+# 기업개요(설립일/대표이사/주소/홈페이지/임직원수)는 자주 바뀌지 않으므로 90일 캐싱
+PROFILE_TTL_DAYS = 90
 
 
 # Story 3.3: new-data-status는 /companies/search 보다 앞에 등록 (경로 충돌 방지)
@@ -108,6 +112,67 @@ async def search_companies(
         .execute()
     )
     return res.data or []
+
+
+@router.get("/companies/{corp_code}/profile", response_model=CompanyProfile)
+async def get_company_profile(corp_code: str, _: object = Depends(get_current_user)):
+    """기업 개요(설립일/대표이사/주소/홈페이지/임직원수) 조회 — 상세 패널 오픈 시 지연 로딩.
+    DB-First: 캐시가 없거나 90일 이상 지났을 때만 DART/국민연금 API 재조회.
+    비상장 수기 입력 기업(corp_code가 MAN_ 접두)은 DART 대상이 아니므로 캐시된 값만 반환.
+    """
+    supabase = get_supabase_client()
+    try:
+        res = supabase.table("companies").select("*").eq("corp_code", corp_code).limit(1).execute()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "DB_UNAVAILABLE", "message": "데이터베이스에 일시적 오류가 발생했습니다.", "status_code": 503},
+        )
+
+    if not res.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "COMPANY_NOT_FOUND", "message": "기업을 찾을 수 없습니다.", "status_code": 404},
+        )
+
+    row = res.data[0]
+    is_manual = corp_code.startswith("MAN_")
+
+    synced_at = row.get("profile_synced_at")
+    is_stale = not synced_at or (
+        datetime.utcnow() - datetime.fromisoformat(synced_at).replace(tzinfo=None) > timedelta(days=PROFILE_TTL_DAYS)
+    )
+
+    if not is_manual and is_stale:
+        profile = dart_client.get_company_profile(corp_code)
+        employee_count, employee_count_source = dart_client.get_employee_count(
+            corp_code, row["company_name"], profile.get("bizr_no")
+        )
+        update_data = {
+            "est_dt": profile.get("est_dt"),
+            "ceo_nm": profile.get("ceo_nm"),
+            "adres": profile.get("adres"),
+            "hm_url": profile.get("hm_url"),
+            "bizr_no": profile.get("bizr_no"),
+            "employee_count": employee_count,
+            "employee_count_source": employee_count_source,
+            "profile_synced_at": datetime.utcnow().isoformat(),
+        }
+        try:
+            supabase.table("companies").update(update_data).eq("corp_code", corp_code).execute()
+            row.update(update_data)
+        except Exception:
+            pass  # 캐시 갱신 실패는 비치명적 — 조회된 값(신선하지 않아도) 그대로 반환
+
+    return CompanyProfile(
+        corp_code=corp_code,
+        est_dt=row.get("est_dt"),
+        ceo_nm=row.get("ceo_nm"),
+        adres=row.get("adres"),
+        hm_url=row.get("hm_url"),
+        employee_count=row.get("employee_count"),
+        employee_count_source=row.get("employee_count_source"),
+    )
 
 
 # ── Story 5.1: 비상장사 수기 입력 ──────────────────────────────

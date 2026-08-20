@@ -6,9 +6,11 @@ Story 3.3: sync_all_companies() 추가 — APScheduler 07:00 KST 자동 호출
 """
 import logging
 import re
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Optional
 
+import pandas as pd
 import requests
 import OpenDartReader
 from bs4 import BeautifulSoup
@@ -45,6 +47,118 @@ def search_companies(keyword: str) -> list[dict]:
     ).astype(int)
     filtered = filtered.sort_values(["_exact", "_listed"], ascending=[False, False])
     return filtered.head(8)[["corp_code", "corp_name", "stock_code"]].to_dict("records")
+
+
+def get_company_profile(corp_code: str) -> dict:
+    """DART 기업개황(company.json) 조회 — 설립일/대표이사/주소/홈페이지/사업자등록번호
+    비상장사 수기 입력 기업(MAN_ 접두)은 DART에 없으므로 호출 전 필터링 필요.
+    """
+    dart = _get_dart()
+    try:
+        data = dart.company(corp_code)
+    except Exception as e:
+        logger.error(f"[DART] company 조회 실패 corp={corp_code}: {e}")
+        return {}
+    if not isinstance(data, dict) or data.get("status") not in (None, "000"):
+        logger.warning(f"[DART] company 빈 결과 corp={corp_code}: {data}")
+        return {}
+    return {
+        "est_dt": data.get("est_dt") or None,
+        "ceo_nm": data.get("ceo_nm") or None,
+        "adres": data.get("adres") or None,
+        "hm_url": data.get("hm_url") or None,
+        "bizr_no": data.get("bizr_no") or None,
+    }
+
+
+def _get_employee_count_from_report(corp_code: str, years_back: int = 3) -> Optional[int]:
+    """사업보고서 직원현황(empSttus)에서 최근 연도 인원 합계 조회.
+    감사보고서만 제출하는 비상장사는 사업보고서 자체가 없어 항상 None.
+    """
+    dart = _get_dart()
+    current_year = datetime.now().year
+    for offset in range(years_back):
+        bsns_year = str(current_year - offset)
+        try:
+            df = dart.report(corp_code, "직원", bsns_year, "11011")
+        except Exception as e:
+            logger.warning(f"[DART] empSttus 조회 실패 corp={corp_code} year={bsns_year}: {e}")
+            continue
+        if df is None or not hasattr(df, "empty") or df.empty or "sm" not in df.columns:
+            continue
+        total = pd.to_numeric(df["sm"], errors="coerce").fillna(0).sum()
+        if total > 0:
+            logger.info(f"[DART] empSttus 조회 성공 corp={corp_code} year={bsns_year} total={int(total)}")
+            return int(total)
+    return None
+
+
+def _normalize_company_name(name: str) -> str:
+    return re.sub(r"\s+|주식회사|㈜|\(주\)", "", name or "")
+
+
+def _nps_request(operation: str, params: dict) -> Optional[ET.Element]:
+    """국민연금공단 사업장 정보 조회 API(NpsBplcInfoInqireService) 공통 호출"""
+    url = f"https://apis.data.go.kr/B552015/NpsBplcInfoInqireService/{operation}"
+    try:
+        r = requests.get(url, params={"serviceKey": settings.NPS_API_KEY, **params}, timeout=5)
+        r.raise_for_status()
+        return ET.fromstring(r.content)
+    except Exception as e:
+        logger.warning(f"[NPS] {operation} 요청 실패: {e}")
+        return None
+
+
+def _get_employee_count_from_nps(bizr_no: Optional[str], company_name: str) -> Optional[int]:
+    """국민연금 사업장 가입자 현황 폴백 — 사업보고서 직원현황이 없는 비상장사 대상.
+    ⚠️ bzowr_rgst_no는 사업자등록번호 전체가 아니라 앞 6자리(지역+세무서 코드)만 받는 프리픽스
+    검색이라 동명이인 사업장이 여러 건 나올 수 있음 → 사업장명 일치로 재확인 후 seq 확정.
+    """
+    if not settings.NPS_API_KEY or not bizr_no:
+        return None
+
+    regist_numb = bizr_no.replace("-", "")[:6]
+    root = _nps_request("getBassInfoSearch", {"bzowr_rgst_no": regist_numb, "numOfRows": 100, "pageNo": 1})
+    if root is None:
+        return None
+
+    target_name = _normalize_company_name(company_name)
+    seq = None
+    for item in root.findall(".//item"):
+        name_el, status_el, seq_el = item.find("wkplNm"), item.find("wkplJnngStcd"), item.find("seq")
+        if name_el is None or status_el is None or seq_el is None:
+            continue
+        if status_el.text == "1" and _normalize_company_name(name_el.text) == target_name:
+            seq = seq_el.text
+            break
+    if not seq:
+        return None
+
+    detail_root = _nps_request("getDetailInfoSearch", {"seq": seq})
+    if detail_root is None:
+        return None
+    member_el = detail_root.find(".//jnngpCnt")
+    if member_el is None or not member_el.text:
+        return None
+    try:
+        return int(member_el.text)
+    except ValueError:
+        return None
+
+
+def get_employee_count(corp_code: str, company_name: str, bizr_no: Optional[str]) -> tuple[Optional[int], Optional[str]]:
+    """임직원수 조회: 1순위 사업보고서 직원현황 → 2순위 국민연금 가입자 현황 폴백.
+    반환: (인원수 또는 None, 소스("dart_report"|"nps") 또는 None)
+    """
+    count = _get_employee_count_from_report(corp_code)
+    if count is not None:
+        return count, "dart_report"
+
+    count = _get_employee_count_from_nps(bizr_no, company_name)
+    if count is not None:
+        return count, "nps"
+
+    return None, None
 
 
 def get_financial_statements(

@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str = ""
     # pg_cron → 백엔드 sync 엔드포인트 인증용 시크릿 (랜덤 문자열, 미설정 시 sync/all 비활성화)
     SYNC_SECRET_KEY: str = ""
+    # 공공데이터포털 국민연금공단 API (Decoding 인증키) — 감사보고서만 제출하는 비상장사 임직원수 폴백용
+    # 미설정 시 폴백 비활성화 (dart_report만 시도)
+    NPS_API_KEY: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

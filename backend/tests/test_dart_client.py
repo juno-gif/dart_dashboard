@@ -248,6 +248,135 @@ class TestSyncAllCompanies:
         assert "[DART_SYNC] 기업 목록 조회 실패" in caplog.text
 
 
+class TestGetCompanyProfile:
+    """get_company_profile() — DART 기업개황(company.json) 테스트"""
+
+    def test_returns_mapped_fields(self):
+        mock_dart = MagicMock()
+        mock_dart.company.return_value = {
+            "status": "000",
+            "est_dt": "19690113",
+            "ceo_nm": "홍길동",
+            "adres": "경기도 수원시",
+            "hm_url": "www.example.com",
+            "bizr_no": "1248100998",
+        }
+        with patch("app.services.dart_client.OpenDartReader", return_value=mock_dart):
+            from app.services.dart_client import get_company_profile
+            result = get_company_profile("005930")
+
+        assert result["est_dt"] == "19690113"
+        assert result["ceo_nm"] == "홍길동"
+        assert result["bizr_no"] == "1248100998"
+
+    def test_returns_empty_dict_on_error_status(self):
+        mock_dart = MagicMock()
+        mock_dart.company.return_value = {"status": "013", "message": "조회 결과 없음"}
+        with patch("app.services.dart_client.OpenDartReader", return_value=mock_dart):
+            from app.services.dart_client import get_company_profile
+            result = get_company_profile("999999")
+
+        assert result == {}
+
+    def test_returns_empty_dict_on_exception(self):
+        mock_dart = MagicMock()
+        mock_dart.company.side_effect = Exception("network error")
+        with patch("app.services.dart_client.OpenDartReader", return_value=mock_dart):
+            from app.services.dart_client import get_company_profile
+            result = get_company_profile("005930")
+
+        assert result == {}
+
+
+class TestGetEmployeeCount:
+    """get_employee_count() — 사업보고서 직원현황 → 국민연금 폴백 체인 테스트"""
+
+    def test_uses_dart_report_when_available(self):
+        mock_dart = MagicMock()
+        mock_dart.report.return_value = pd.DataFrame([
+            {"fo_bbm": "전체", "sexdstn": "남", "sm": "100"},
+            {"fo_bbm": "전체", "sexdstn": "여", "sm": "50"},
+        ])
+        with patch("app.services.dart_client.OpenDartReader", return_value=mock_dart):
+            from app.services.dart_client import get_employee_count
+            count, source = get_employee_count("005930", "삼성전자", "1248100998")
+
+        assert count == 150
+        assert source == "dart_report"
+
+    def test_falls_back_to_nps_when_report_empty(self):
+        mock_dart = MagicMock()
+        mock_dart.report.return_value = pd.DataFrame()
+
+        with patch("app.services.dart_client.OpenDartReader", return_value=mock_dart):
+            with patch("app.services.dart_client.settings") as mock_settings:
+                mock_settings.NPS_API_KEY = "test-key"
+                with patch("app.services.dart_client._get_employee_count_from_nps", return_value=42) as mock_nps:
+                    from app.services.dart_client import get_employee_count
+                    count, source = get_employee_count("MAN_ABC", "테스트법인", "1234500001")
+
+        mock_nps.assert_called_once_with("1234500001", "테스트법인")
+        assert count == 42
+        assert source == "nps"
+
+    def test_returns_none_when_both_sources_fail(self):
+        mock_dart = MagicMock()
+        mock_dart.report.return_value = pd.DataFrame()
+
+        with patch("app.services.dart_client.OpenDartReader", return_value=mock_dart):
+            with patch("app.services.dart_client._get_employee_count_from_nps", return_value=None):
+                from app.services.dart_client import get_employee_count
+                count, source = get_employee_count("MAN_ABC", "테스트법인", None)
+
+        assert count is None
+        assert source is None
+
+
+class TestNpsFallback:
+    """_get_employee_count_from_nps() — 국민연금 사업장 가입자 현황 조회 테스트"""
+
+    def test_returns_none_without_api_key(self):
+        with patch("app.services.dart_client.settings") as mock_settings:
+            mock_settings.NPS_API_KEY = ""
+            from app.services.dart_client import _get_employee_count_from_nps
+            assert _get_employee_count_from_nps("1234500001", "테스트법인") is None
+
+    def test_matches_by_name_and_returns_member_count(self):
+        search_xml = (
+            "<response><body><items>"
+            "<item><wkplNm>테스트법인</wkplNm><wkplJnngStcd>1</wkplJnngStcd><seq>999</seq></item>"
+            "</items></body></response>"
+        ).encode("utf-8")
+        detail_xml = "<response><body><item><jnngpCnt>42</jnngpCnt></item></body></response>".encode("utf-8")
+
+        mock_search_resp = MagicMock(content=search_xml)
+        mock_detail_resp = MagicMock(content=detail_xml)
+
+        with patch("app.services.dart_client.settings") as mock_settings:
+            mock_settings.NPS_API_KEY = "test-key"
+            with patch("app.services.dart_client.requests.get", side_effect=[mock_search_resp, mock_detail_resp]):
+                from app.services.dart_client import _get_employee_count_from_nps
+                result = _get_employee_count_from_nps("1234500001", "테스트법인")
+
+        assert result == 42
+
+    def test_returns_none_when_no_name_match(self):
+        search_xml = (
+            "<response><body><items>"
+            "<item><wkplNm>전혀다른회사</wkplNm><wkplJnngStcd>1</wkplJnngStcd><seq>999</seq></item>"
+            "</items></body></response>"
+        ).encode("utf-8")
+        mock_search_resp = MagicMock(content=search_xml)
+
+        with patch("app.services.dart_client.settings") as mock_settings:
+            mock_settings.NPS_API_KEY = "test-key"
+            with patch("app.services.dart_client.requests.get", return_value=mock_search_resp):
+                from app.services.dart_client import _get_employee_count_from_nps
+                result = _get_employee_count_from_nps("1234500001", "테스트법인")
+
+        assert result is None
+
+
 def test_dart_client_is_only_importer():
     """OpenDartReader가 dart_client.py에서만 import되는지 확인 (다른 모듈에 없는지)"""
     import ast

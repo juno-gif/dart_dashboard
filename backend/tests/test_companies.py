@@ -162,3 +162,103 @@ class TestNewDataStatus:
         unauthenticated_client = TestClient(app)  # override 없는 클라이언트
         response = unauthenticated_client.get("/api/v1/companies/new-data-status?codes=005930")
         assert response.status_code == 401
+
+
+class TestCompanyProfile:
+    """GET /api/v1/companies/{corp_code}/profile — 기업 개요 지연 로딩 테스트"""
+
+    def _mock_supabase_for_row(self, row: dict):
+        mock_sb = MagicMock()
+        mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [row]
+        return mock_sb
+
+    def test_returns_cached_profile_when_fresh(self, client):
+        """profile_synced_at이 최근이면 DART 재조회 없이 캐시된 값 반환"""
+        row = {
+            "corp_code": "005930",
+            "company_name": "삼성전자",
+            "est_dt": "19690113",
+            "ceo_nm": "홍길동",
+            "adres": "경기도 수원시",
+            "hm_url": "www.samsung.com",
+            "employee_count": 120000,
+            "employee_count_source": "dart_report",
+            "profile_synced_at": "2026-08-01T00:00:00",
+        }
+        mock_sb = self._mock_supabase_for_row(row)
+
+        with patch("app.api.v1.companies.get_supabase_client", return_value=mock_sb):
+            with patch("app.api.v1.companies.dart_client.get_company_profile") as mock_profile:
+                response = client.get("/api/v1/companies/005930/profile")
+
+        mock_profile.assert_not_called()
+        assert response.status_code == 200
+        body = response.json()
+        assert body["ceo_nm"] == "홍길동"
+        assert body["employee_count"] == 120000
+
+    def test_fetches_from_dart_when_stale(self, client):
+        """캐시 없거나 오래되면 DART 기업개황 + 임직원수 재조회 후 DB 갱신"""
+        row = {
+            "corp_code": "005930",
+            "company_name": "삼성전자",
+            "est_dt": None,
+            "ceo_nm": None,
+            "adres": None,
+            "hm_url": None,
+            "employee_count": None,
+            "employee_count_source": None,
+            "profile_synced_at": None,
+        }
+        mock_sb = self._mock_supabase_for_row(row)
+
+        with patch("app.api.v1.companies.get_supabase_client", return_value=mock_sb):
+            with patch(
+                "app.api.v1.companies.dart_client.get_company_profile",
+                return_value={"est_dt": "19690113", "ceo_nm": "홍길동", "adres": "경기도", "hm_url": "www.samsung.com", "bizr_no": "1248100998"},
+            ):
+                with patch(
+                    "app.api.v1.companies.dart_client.get_employee_count",
+                    return_value=(120000, "dart_report"),
+                ):
+                    response = client.get("/api/v1/companies/005930/profile")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["ceo_nm"] == "홍길동"
+        assert body["employee_count"] == 120000
+        assert body["employee_count_source"] == "dart_report"
+        mock_sb.table.return_value.update.assert_called_once()
+
+    def test_manual_company_skips_dart(self, client):
+        """수기 입력 기업(MAN_ 접두)은 오래된 캐시라도 DART 재조회 안 함"""
+        row = {
+            "corp_code": "MAN_ABC12345",
+            "company_name": "비상장테스트법인",
+            "est_dt": None,
+            "ceo_nm": None,
+            "adres": None,
+            "hm_url": None,
+            "employee_count": None,
+            "employee_count_source": None,
+            "profile_synced_at": None,
+        }
+        mock_sb = self._mock_supabase_for_row(row)
+
+        with patch("app.api.v1.companies.get_supabase_client", return_value=mock_sb):
+            with patch("app.api.v1.companies.dart_client.get_company_profile") as mock_profile:
+                response = client.get("/api/v1/companies/MAN_ABC12345/profile")
+
+        mock_profile.assert_not_called()
+        assert response.status_code == 200
+        assert response.json()["employee_count"] is None
+
+    def test_company_not_found_returns_404(self, client):
+        """존재하지 않는 corp_code는 404 반환"""
+        mock_sb = MagicMock()
+        mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+
+        with patch("app.api.v1.companies.get_supabase_client", return_value=mock_sb):
+            response = client.get("/api/v1/companies/000000/profile")
+
+        assert response.status_code == 404
