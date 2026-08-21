@@ -248,6 +248,70 @@ class TestSyncAllCompanies:
         assert "[DART_SYNC] 기업 목록 조회 실패" in caplog.text
 
 
+class TestAuditReportSignHandling:
+    """감사보고서(F001) 파싱 경로의 손실 계정 부호·중복 처리 검증
+    회귀 배경: NHN페이코(2025년 실제 순손실 -55억)가 대시보드에 순이익 +1366억으로 표시되던 버그
+    """
+
+    def _run_sync(self, audit_rows):
+        mock_dart = MagicMock()
+        mock_dart.finstate.return_value = None  # finstate 실패 → 감사보고서 폴백 유도
+
+        mock_supabase = MagicMock()
+        mock_supabase.table.return_value.select.return_value.execute.return_value.data = []
+        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value.data = {"audit_only": False}
+
+        captured = []
+
+        def fake_upsert(data, on_conflict):
+            captured.extend(data)
+            m = MagicMock()
+            m.execute.return_value.data = data
+            return m
+
+        mock_supabase.table.return_value.upsert.side_effect = fake_upsert
+
+        with patch("app.services.dart_client.OpenDartReader", return_value=mock_dart):
+            with patch("app.services.dart_client.get_supabase_client", return_value=mock_supabase):
+                with patch("app.services.dart_client._get_financial_from_audit_report", return_value=audit_rows):
+                    from app.services.dart_client import sync_company_financials
+                    sync_company_financials("01206896", years=1)
+
+        return captured
+
+    def test_loss_account_from_audit_report_not_double_negated(self):
+        """_parse_amount()가 이미 음수로 변환한 손실 계정 값이 다시 반전되지 않아야 함"""
+        captured = self._run_sync([
+            {"account_nm": "X. 당기순손실", "thstrm_amount": "-5548248210", "reprt_code": "F001", "fs_div": "CFS"},
+        ])
+
+        net_income_rows = [r for r in captured if r.get("account_key") == "net_income"]
+        assert len(net_income_rows) == 1
+        assert net_income_rows[0]["amount"] == -5548248210
+
+    def test_dedup_prefers_numbered_prefix_over_larger_bare_duplicate(self):
+        """번호 접두사 없는 맨몸 계정명이 절댓값이 더 크더라도, 번호 붙은 본표 라인이 우선해야 함"""
+        captured = self._run_sync([
+            {"account_nm": "X. 당기순손실", "thstrm_amount": "-5548248210", "reprt_code": "F001", "fs_div": "CFS"},
+            {"account_nm": "당기순손실", "thstrm_amount": "-136582748759", "reprt_code": "F001", "fs_div": "CFS"},
+        ])
+
+        net_income_rows = [r for r in captured if r.get("account_key") == "net_income"]
+        assert len(net_income_rows) == 1
+        assert net_income_rows[0]["amount"] == -5548248210
+
+    def test_dedup_still_prefers_larger_amount_when_neither_has_prefix(self):
+        """기존 회귀 방지: 둘 다 번호가 없으면 여전히 절댓값이 큰 쪽(영업수익)이 우선해야 함"""
+        captured = self._run_sync([
+            {"account_nm": "이자수익", "thstrm_amount": "800000000", "reprt_code": "F001", "fs_div": "CFS"},
+            {"account_nm": "영업수익", "thstrm_amount": "143200000000", "reprt_code": "F001", "fs_div": "CFS"},
+        ])
+
+        revenue_rows = [r for r in captured if r.get("account_key") == "revenue"]
+        assert len(revenue_rows) == 1
+        assert revenue_rows[0]["amount"] == 143200000000
+
+
 class TestGetCompanyProfile:
     """get_company_profile() — DART 기업개황(company.json) 테스트"""
 

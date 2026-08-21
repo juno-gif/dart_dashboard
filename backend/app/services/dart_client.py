@@ -613,6 +613,16 @@ _BUILTIN_ACCOUNT_MAPPINGS: dict[str, str] = {
 _IS_ONLY_REVENUE_NMS: frozenset[str] = frozenset({"이자수익", "순이자손익"})
 
 
+def _has_numbered_prefix(account_nm: str) -> bool:
+    """계정명이 'I.', 'X.', '1.' 같은 재무제표 본표 번호 접두사로 시작하는지 확인.
+    감사보고서 본문(손익계산서 등)의 정식 라인은 항상 이런 번호가 붙지만, 결손금처리계산서·주석
+    등 부속 표에서 같은 이름(예: 맨몸 "당기순손실")으로 다른 기간 값이 중복 추출되는 경우엔
+    번호가 없는 경우가 많음 — dedup 시 번호 붙은 쪽을 우선하기 위한 판별.
+    """
+    normalized = re.sub(r"[\s　   ​  ]+", "", account_nm or "")
+    return bool(re.match(r"^[IVXLCDMivxlcdmⅠ-ⅿ\d]+\.", normalized))
+
+
 def sync_company_financials(corp_code: str, years: int = 5) -> dict:
     """기업 재무 데이터를 DART에서 수집해 DB에 UPSERT
     - reprt_code 폴백: 11011 → 11012 → 11013 → 11014 → 감사보고서(F001)
@@ -716,8 +726,10 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
             except (ValueError, TypeError):
                 amount = None
 
-            # 손실 계정(영업손실·당기순손실 등)은 DART가 양수 반환 → 부호 반전
-            if amount is not None and account_nm_no_note in _NEGATE_ACCOUNT_NMS:
+            # 손실 계정(영업손실·당기순손실 등)은 DART 구조화 API(finstate)가 양수로 반환 → 부호 반전 필요.
+            # 단, 감사보고서 HTML 파싱(F001) 경로는 _parse_amount()가 괄호 표기를 이미 음수로
+            # 정확히 변환해두므로 여기서 또 반전하면 이중 반전(손실이 이익으로 표시)되는 버그가 됨.
+            if amount is not None and account_nm_no_note in _NEGATE_ACCOUNT_NMS and row_reprt_code != "F001":
                 amount = -amount
 
             upsert_data.append(
@@ -753,11 +765,23 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
 
             # 감사보고서 HTML 파싱 시 동일 account_key가 여러 테이블에서 중복 추출될 수 있음
             # UPSERT 배치 내 중복 → "ON CONFLICT DO UPDATE command cannot affect row a second time" 오류 방지
-            # 동일 키 충돌 시 절댓값이 큰 항목 유지 (예: 영업수익 1432억 vs 이자수익 8억 → 영업수익 선택)
+            # 1순위: 번호 접두사(예: "X. 당기순손실")가 붙은 쪽 — 본표 정식 라인이라 신뢰도 높음.
+            #   번호 없는 맨몸 계정명(예: 결손금처리계산서의 "당기순손실")은 다른 기간 값이 같은 이름으로
+            #   중복 추출된 것일 수 있어 후순위로 둠.
+            # 2순위(둘 다 번호 있음/없음일 때만): 절댓값 큰 항목 유지 (예: 영업수익 1432억 vs 이자수익 8억)
             dedup_map: dict = {}
             for item in upsert_data:
                 key = (item["corp_code"], item["bsns_year"], item["reprt_code"], item["fs_div"], item["account_key"])
-                if key not in dedup_map or abs(item.get("amount", 0)) > abs(dedup_map[key].get("amount", 0)):
+                if key not in dedup_map:
+                    dedup_map[key] = item
+                    continue
+                existing = dedup_map[key]
+                item_prefixed = _has_numbered_prefix(item.get("account_nm", ""))
+                existing_prefixed = _has_numbered_prefix(existing.get("account_nm", ""))
+                if item_prefixed != existing_prefixed:
+                    if item_prefixed:
+                        dedup_map[key] = item
+                elif abs(item.get("amount", 0)) > abs(existing.get("amount", 0)):
                     dedup_map[key] = item
             deduped = list(dedup_map.values())
             logger.info(f"[DART] UPSERT 시작 corp={corp_code} year={bsns_year} rows={len(deduped)}")
