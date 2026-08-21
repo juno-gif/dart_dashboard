@@ -103,7 +103,8 @@ def _nps_request(operation: str, params: dict) -> Optional[ET.Element]:
     """
     url = f"https://apis.data.go.kr/B552015/NpsBplcInfoInqireServiceV2/{operation}"
     try:
-        r = requests.get(url, params={"serviceKey": settings.NPS_API_KEY, **params}, timeout=5)
+        # getBassInfoSearchV2는 실측 8~10초대 응답도 정상 범위라 여유 있게 설정
+        r = requests.get(url, params={"serviceKey": settings.NPS_API_KEY, **params}, timeout=15)
         r.raise_for_status()
         return ET.fromstring(r.content)
     except Exception as e:
