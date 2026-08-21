@@ -156,8 +156,11 @@ async def get_company_profile(corp_code: str, _: object = Depends(get_current_us
             "bizr_no": profile.get("bizr_no"),
             "employee_count": employee_count,
             "employee_count_source": employee_count_source,
-            "profile_synced_at": datetime.utcnow().isoformat(),
         }
+        # 임직원수를 못 찾았을 때는 profile_synced_at을 갱신하지 않음 — 사업보고서/국민연금
+        # 양쪽 다 일시적 실패(타임아웃 등)였을 가능성이 있어, 다음 방문 시 재시도하도록 stale 유지
+        if employee_count is not None:
+            update_data["profile_synced_at"] = datetime.utcnow().isoformat()
         try:
             supabase.table("companies").update(update_data).eq("corp_code", corp_code).execute()
             row.update(update_data)

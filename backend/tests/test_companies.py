@@ -230,6 +230,37 @@ class TestCompanyProfile:
         assert body["employee_count_source"] == "dart_report"
         mock_sb.table.return_value.update.assert_called_once()
 
+    def test_does_not_stamp_synced_at_when_employee_count_missing(self, client):
+        """임직원수를 못 찾았을 때는 profile_synced_at을 갱신하지 않아 다음 방문 시 재시도되게 함"""
+        row = {
+            "corp_code": "005930",
+            "company_name": "삼성전자",
+            "est_dt": None,
+            "ceo_nm": None,
+            "adres": None,
+            "hm_url": None,
+            "employee_count": None,
+            "employee_count_source": None,
+            "profile_synced_at": None,
+        }
+        mock_sb = self._mock_supabase_for_row(row)
+
+        with patch("app.api.v1.companies.get_supabase_client", return_value=mock_sb):
+            with patch(
+                "app.api.v1.companies.dart_client.get_company_profile",
+                return_value={"est_dt": "19690113", "ceo_nm": "홍길동", "adres": "경기도", "hm_url": None, "bizr_no": "1248100998"},
+            ):
+                with patch(
+                    "app.api.v1.companies.dart_client.get_employee_count",
+                    return_value=(None, None),
+                ):
+                    response = client.get("/api/v1/companies/005930/profile")
+
+        assert response.status_code == 200
+        update_call_args = mock_sb.table.return_value.update.call_args[0][0]
+        assert "profile_synced_at" not in update_call_args
+        assert update_call_args["ceo_nm"] == "홍길동"
+
     def test_manual_company_skips_dart(self, client):
         """수기 입력 기업(MAN_ 접두)은 오래된 캐시라도 DART 재조회 안 함"""
         row = {
