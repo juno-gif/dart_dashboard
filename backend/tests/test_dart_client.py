@@ -299,7 +299,7 @@ class TestGetEmployeeCount:
         ])
         with patch("app.services.dart_client.OpenDartReader", return_value=mock_dart):
             from app.services.dart_client import get_employee_count
-            count, source = get_employee_count("005930", "삼성전자", "1248100998")
+            count, source = get_employee_count("005930", "삼성전자")
 
         assert count == 150
         assert source == "dart_report"
@@ -313,9 +313,9 @@ class TestGetEmployeeCount:
                 mock_settings.NPS_API_KEY = "test-key"
                 with patch("app.services.dart_client._get_employee_count_from_nps", return_value=42) as mock_nps:
                     from app.services.dart_client import get_employee_count
-                    count, source = get_employee_count("MAN_ABC", "테스트법인", "1234500001")
+                    count, source = get_employee_count("MAN_ABC", "테스트법인")
 
-        mock_nps.assert_called_once_with("1234500001", "테스트법인")
+        mock_nps.assert_called_once_with("테스트법인")
         assert count == 42
         assert source == "nps"
 
@@ -326,7 +326,7 @@ class TestGetEmployeeCount:
         with patch("app.services.dart_client.OpenDartReader", return_value=mock_dart):
             with patch("app.services.dart_client._get_employee_count_from_nps", return_value=None):
                 from app.services.dart_client import get_employee_count
-                count, source = get_employee_count("MAN_ABC", "테스트법인", None)
+                count, source = get_employee_count("MAN_ABC", "테스트법인")
 
         assert count is None
         assert source is None
@@ -339,7 +339,7 @@ class TestNpsFallback:
         with patch("app.services.dart_client.settings") as mock_settings:
             mock_settings.NPS_API_KEY = ""
             from app.services.dart_client import _get_employee_count_from_nps
-            assert _get_employee_count_from_nps("1234500001", "테스트법인") is None
+            assert _get_employee_count_from_nps("테스트법인") is None
 
     def test_matches_by_name_and_returns_member_count(self):
         search_xml = (
@@ -356,7 +356,7 @@ class TestNpsFallback:
             mock_settings.NPS_API_KEY = "test-key"
             with patch("app.services.dart_client.requests.get", side_effect=[mock_search_resp, mock_detail_resp]):
                 from app.services.dart_client import _get_employee_count_from_nps
-                result = _get_employee_count_from_nps("1234500001", "테스트법인")
+                result = _get_employee_count_from_nps("테스트법인")
 
         assert result == 42
 
@@ -372,7 +372,7 @@ class TestNpsFallback:
             mock_settings.NPS_API_KEY = "test-key"
             with patch("app.services.dart_client.requests.get", return_value=mock_search_resp):
                 from app.services.dart_client import _get_employee_count_from_nps
-                result = _get_employee_count_from_nps("1234500001", "테스트법인")
+                result = _get_employee_count_from_nps("테스트법인")
 
         assert result is None
 

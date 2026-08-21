@@ -146,7 +146,7 @@ async def get_company_profile(corp_code: str, _: object = Depends(get_current_us
     if not is_manual and is_stale:
         profile = dart_client.get_company_profile(corp_code)
         employee_count, employee_count_source = dart_client.get_employee_count(
-            corp_code, row["company_name"], profile.get("bizr_no")
+            corp_code, row["company_name"]
         )
         update_data = {
             "est_dt": profile.get("est_dt"),

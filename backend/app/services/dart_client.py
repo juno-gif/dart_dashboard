@@ -98,8 +98,10 @@ def _normalize_company_name(name: str) -> str:
 
 
 def _nps_request(operation: str, params: dict) -> Optional[ET.Element]:
-    """국민연금공단 사업장 정보 조회 API(NpsBplcInfoInqireService) 공통 호출"""
-    url = f"https://apis.data.go.kr/B552015/NpsBplcInfoInqireService/{operation}"
+    """국민연금공단 사업장 정보 조회 API(NpsBplcInfoInqireServiceV2) 공통 호출
+    ⚠️ V1(NpsBplcInfoInqireService)은 서비스 종료(NO_OPENAPI_SERVICE_ERROR)됨 — V2 오퍼레이션만 유효
+    """
+    url = f"https://apis.data.go.kr/B552015/NpsBplcInfoInqireServiceV2/{operation}"
     try:
         r = requests.get(url, params={"serviceKey": settings.NPS_API_KEY, **params}, timeout=5)
         r.raise_for_status()
@@ -109,16 +111,16 @@ def _nps_request(operation: str, params: dict) -> Optional[ET.Element]:
         return None
 
 
-def _get_employee_count_from_nps(bizr_no: Optional[str], company_name: str) -> Optional[int]:
+def _get_employee_count_from_nps(company_name: str) -> Optional[int]:
     """국민연금 사업장 가입자 현황 폴백 — 사업보고서 직원현황이 없는 비상장사 대상.
-    ⚠️ bzowr_rgst_no는 사업자등록번호 전체가 아니라 앞 6자리(지역+세무서 코드)만 받는 프리픽스
-    검색이라 동명이인 사업장이 여러 건 나올 수 있음 → 사업장명 일치로 재확인 후 seq 확정.
+    사업장명(wkplNm)으로 검색(부분일치) → 정규화 후 이름이 일치하는 등록 상태 사업장의
+    seq로 상세 조회하여 가입자수(jnngpCnt) 확보. 검색 결과는 최신월 순으로 반환되므로
+    첫 일치 항목을 사용.
     """
-    if not settings.NPS_API_KEY or not bizr_no:
+    if not settings.NPS_API_KEY:
         return None
 
-    regist_numb = bizr_no.replace("-", "")[:6]
-    root = _nps_request("getBassInfoSearch", {"bzowr_rgst_no": regist_numb, "numOfRows": 100, "pageNo": 1})
+    root = _nps_request("getBassInfoSearchV2", {"wkplNm": company_name, "numOfRows": 100, "pageNo": 1})
     if root is None:
         return None
 
@@ -134,7 +136,7 @@ def _get_employee_count_from_nps(bizr_no: Optional[str], company_name: str) -> O
     if not seq:
         return None
 
-    detail_root = _nps_request("getDetailInfoSearch", {"seq": seq})
+    detail_root = _nps_request("getDetailInfoSearchV2", {"seq": seq})
     if detail_root is None:
         return None
     member_el = detail_root.find(".//jnngpCnt")
@@ -146,7 +148,7 @@ def _get_employee_count_from_nps(bizr_no: Optional[str], company_name: str) -> O
         return None
 
 
-def get_employee_count(corp_code: str, company_name: str, bizr_no: Optional[str]) -> tuple[Optional[int], Optional[str]]:
+def get_employee_count(corp_code: str, company_name: str) -> tuple[Optional[int], Optional[str]]:
     """임직원수 조회: 1순위 사업보고서 직원현황 → 2순위 국민연금 가입자 현황 폴백.
     반환: (인원수 또는 None, 소스("dart_report"|"nps") 또는 None)
     """
@@ -154,7 +156,7 @@ def get_employee_count(corp_code: str, company_name: str, bizr_no: Optional[str]
     if count is not None:
         return count, "dart_report"
 
-    count = _get_employee_count_from_nps(bizr_no, company_name)
+    count = _get_employee_count_from_nps(company_name)
     if count is not None:
         return count, "nps"
 
