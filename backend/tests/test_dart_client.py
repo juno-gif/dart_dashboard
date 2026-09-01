@@ -311,6 +311,24 @@ class TestAuditReportSignHandling:
         assert len(revenue_rows) == 1
         assert revenue_rows[0]["amount"] == 143200000000
 
+    def test_dedup_excludes_candidate_matching_revenue_exactly(self):
+        """DART XBRL 표준계정 오태깅 회귀 방지: 롯데렌탈 2021년 finstate()가 영업이익을 매출액과
+        동일한 값(dart_OperatingIncomeLoss가 영업수익 행에 오태깅됨)으로 반환했던 사례.
+        절댓값은 매출과 같은 쪽이 훨씬 크더라도, 매출과 정확히 같은 후보는 배제되어야 함.
+        """
+        captured = self._run_sync([
+            # finstate() 원본 — XBRL 오태깅으로 영업이익에 매출액과 동일한 값이 들어옴 (오답)
+            {"account_nm": "영업이익", "thstrm_amount": "2422658838497", "reprt_code": "11011", "fs_div": "CFS"},
+            # finstate_all() 보완 — 실제 매출(영업수익)
+            {"account_nm": "영업수익", "thstrm_amount": "2422658838497", "reprt_code": "11011", "fs_div": "CFS"},
+            # finstate_all() 보완 — 실제 영업이익 (정답)
+            {"account_nm": "영업이익", "thstrm_amount": "245494852201", "reprt_code": "11011", "fs_div": "CFS"},
+        ])
+
+        operating_profit_rows = [r for r in captured if r.get("account_key") == "operating_profit"]
+        assert len(operating_profit_rows) == 1
+        assert operating_profit_rows[0]["amount"] == 245494852201
+
 
 class TestGetCompanyProfile:
     """get_company_profile() — DART 기업개황(company.json) 테스트"""

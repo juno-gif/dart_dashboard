@@ -763,12 +763,31 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
                             "amount": equity + liabilities,
                         })
 
-            # 감사보고서 HTML 파싱 시 동일 account_key가 여러 테이블에서 중복 추출될 수 있음
-            # UPSERT 배치 내 중복 → "ON CONFLICT DO UPDATE command cannot affect row a second time" 오류 방지
+            # 동일 account_key가 여러 곳(감사보고서 여러 표, finstate()+finstate_all() 보완)에서
+            # 중복 추출될 수 있음 → UPSERT 배치 내 중복 시 "ON CONFLICT DO UPDATE command cannot
+            # affect row a second time" 오류 방지 겸 올바른 값 선택
+            #
+            # 0순위: 매출(revenue)과 금액이 정확히 같은 후보는 배제 — DART XBRL 표준계정 코드가
+            #   매출 행에 잘못 태깅되어 finstate()가 "영업이익=매출액"을 그대로 반환하는 사례 발견
+            #   (예: 롯데렌탈 2021·2022년, dart_OperatingIncomeLoss 코드가 영업수익 행에 오태깅됨).
+            #   영업이익·순이익이 매출과 정확히 같은 실제 사례는 있을 수 없으므로 신뢰도 낮음으로 간주.
             # 1순위: 번호 접두사(예: "X. 당기순손실")가 붙은 쪽 — 본표 정식 라인이라 신뢰도 높음.
             #   번호 없는 맨몸 계정명(예: 결손금처리계산서의 "당기순손실")은 다른 기간 값이 같은 이름으로
             #   중복 추출된 것일 수 있어 후순위로 둠.
-            # 2순위(둘 다 번호 있음/없음일 때만): 절댓값 큰 항목 유지 (예: 영업수익 1432억 vs 이자수익 8억)
+            # 2순위(0·1순위로 못 가르면): 절댓값 큰 항목 유지 (예: 영업수익 1432억 vs 이자수익 8억)
+            revenue_amounts_by_fs_div: dict[str, set] = {}
+            for item in upsert_data:
+                if item["account_key"] == "revenue" and item.get("amount") is not None:
+                    revenue_amounts_by_fs_div.setdefault(item["fs_div"], set()).add(item["amount"])
+
+            def _matches_revenue(item: dict) -> bool:
+                amount = item.get("amount")
+                return (
+                    amount is not None
+                    and item["account_key"] != "revenue"
+                    and amount in revenue_amounts_by_fs_div.get(item["fs_div"], set())
+                )
+
             dedup_map: dict = {}
             for item in upsert_data:
                 key = (item["corp_code"], item["bsns_year"], item["reprt_code"], item["fs_div"], item["account_key"])
@@ -776,6 +795,12 @@ def sync_company_financials(corp_code: str, years: int = 5) -> dict:
                     dedup_map[key] = item
                     continue
                 existing = dedup_map[key]
+                item_bad = _matches_revenue(item)
+                existing_bad = _matches_revenue(existing)
+                if item_bad != existing_bad:
+                    if not item_bad:
+                        dedup_map[key] = item
+                    continue
                 item_prefixed = _has_numbered_prefix(item.get("account_nm", ""))
                 existing_prefixed = _has_numbered_prefix(existing.get("account_nm", ""))
                 if item_prefixed != existing_prefixed:
